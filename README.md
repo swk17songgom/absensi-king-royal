@@ -1,16 +1,19 @@
-# absensi_king_royal
+# Aplikasi Absensi & Pengajuan Izin Karyawan
+King Royal Hotel Brebes
 
-A new Flutter project.
+## Deskripsi
+Aplikasi berbasis Android yang digunakan untuk absensi dan pengajuan izin karyawan.
 
-## Getting Started
+## Teknologi
+- Flutter
+- Express.js
+- MySQL
 
-This project is a starting point for a Flutter application.
+## Fitur
+- Login
+- Absensi Masuk & Pulang
+- Pengajuan Izin
+- Riwayat Absensi
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Author
+Ahmad Syifa M
