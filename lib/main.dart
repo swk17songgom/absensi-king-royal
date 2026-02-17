@@ -1,8 +1,13 @@
 import 'dart:async';
 
+import 'package:absensi_king_royal/absen_masuk_page.dart';
+import 'package:absensi_king_royal/absen_pulang_page.dart';
+import 'package:absensi_king_royal/ajukan_izin_page.dart';
+import 'package:absensi_king_royal/attendance_capture_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
+import 'package:absensi_king_royal/profile_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,12 +20,21 @@ class AbsensiKingRoyalApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const royalBlue = Color(0xFF0D2B52);
+    const royalGold = Color(0xFFC9A548);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Absensi King Royal',
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: royalBlue,
+          primary: royalBlue,
+          secondary: royalGold,
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF7F8FB),
       ),
       home: const HomeScreen(),
     );
@@ -38,13 +52,36 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
   DateTime _now = DateTime.now();
 
-  bool isCheckedIn = false;
-  String? lastAction;
-
   final String employeeName = 'Nama Karyawan';
-  final String employeeRole = 'Front Office';
-  final String shift = 'Shift Pagi';
-  final String locationStatus = 'Lokasi OK (GPS)';
+  final String employeeNik = '3276XXXXXXXXXXXX';
+  final String employeeRole = 'Jabatan';
+  final String employeeDepartment = 'Departemen';
+  final String employeePhone = '0812-3456-7890';
+  final String employeeEmail = 'karyawan@kingroyal.com';
+  final String joinedDate = '12 Januari 2024';
+
+  int totalHadir = 22;
+  int totalCuti = 1;
+  int totalExtraOff = 2;
+  int totalSakit = 0;
+  int totalLembur = 7;
+
+  AttendanceSessionState attendanceState = AttendanceSessionState.notCheckedIn;
+  DateTime? checkInAt;
+  DateTime? checkOutAt;
+  LeaveSubmissionStatus leaveSubmissionStatus = LeaveSubmissionStatus.none;
+  final List<LeaveHistoryItem> leaveHistory = [
+    const LeaveHistoryItem(
+      title: 'Izin Keperluan Keluarga',
+      date: '03/02/2026',
+      status: LeaveHistoryStatus.approved,
+    ),
+    const LeaveHistoryItem(
+      title: 'Izin Sakit',
+      date: '14/01/2026',
+      status: LeaveHistoryStatus.rejected,
+    ),
+  ];
 
   @override
   void initState() {
@@ -61,285 +98,178 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _checkIn(String timeStr) {
+  Future<void> _openAbsenMasukPage() async {
+    if (attendanceState != AttendanceSessionState.notCheckedIn) return;
+    final result = await Navigator.of(context).push<AttendanceCaptureResult>(
+      MaterialPageRoute(
+        builder: (_) => AbsenMasukPage(
+          employeeName: employeeName,
+          employeeNik: employeeNik,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
     setState(() {
-      isCheckedIn = true;
-      lastAction = 'Check In - $timeStr';
+      checkInAt = result.capturedAt;
+      checkOutAt = null;
+      attendanceState = AttendanceSessionState.checkedIn;
     });
   }
 
-  void _checkOut(String timeStr) {
+  Future<void> _openAbsenPulangPage() async {
+    if (attendanceState != AttendanceSessionState.checkedIn) return;
+    final result = await Navigator.of(context).push<AttendanceCaptureResult>(
+      MaterialPageRoute(
+        builder: (_) => AbsenPulangPage(
+          employeeName: employeeName,
+          employeeNik: employeeNik,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
     setState(() {
-      isCheckedIn = false;
-      lastAction = 'Check Out - $timeStr';
+      checkOutAt = result.capturedAt;
+      attendanceState = AttendanceSessionState.checkedOut;
     });
+  }
+
+  Future<void> _openAjukanIzinPage() async {
+    final result = await Navigator.of(context).push<LeaveSubmissionPayload>(
+      MaterialPageRoute(
+        builder: (_) => AjukanIzinPage(leaveHistory: leaveHistory),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      leaveSubmissionStatus = LeaveSubmissionStatus.pending;
+      leaveHistory.insert(0, result.historyItem);
+      if (result.type == LeaveRequestType.sakit) totalSakit += 1;
+      if (result.type == LeaveRequestType.cuti) totalCuti += 1;
+      if (result.type == LeaveRequestType.extraOff) totalExtraOff += 1;
+      if (result.type == LeaveRequestType.lembur) totalLembur += 1;
+    });
+  }
+
+  void _openProfilePage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EmployeeProfilePage(
+          fullName: employeeName,
+          nik: employeeNik,
+          jobTitle: employeeRole,
+          department: employeeDepartment,
+          phoneNumber: employeePhone,
+          email: employeeEmail,
+          joinedDate: joinedDate,
+          totalHadir: totalHadir,
+          totalCuti: totalCuti,
+          totalExtraOff: totalExtraOff,
+          totalSakit: totalSakit,
+          totalLembur: totalLembur,
+          leaveHistory: leaveHistory,
+          onLogout: () {
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Anda telah log out.')),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final timeStr = DateFormat('HH:mm:ss', 'id_ID').format(_now);
-    final dateStr = DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(_now);
+    final jam = DateFormat('HH:mm:ss', 'id_ID').format(_now);
+    final hari = DateFormat('EEEE', 'id_ID').format(_now);
+    final tanggal = DateFormat('dd MMMM yyyy', 'id_ID').format(_now);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Absensi King Royal',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            Text(
-              'Hotel King Royal',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
-            ),
-          ],
-        ),
-      ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 860;
-            return Align(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.06,
+                child: Center(
+                  child: Image.asset(
+                    'assets/icons/app_icon.jpg',
+                    width: 320,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+            Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1100),
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    if (isWide)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: _ProfileCard(
-                              employeeName: employeeName,
-                              employeeRole: employeeRole,
-                              shift: shift,
-                              timeStr: timeStr,
-                              dateStr: dateStr,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            flex: 2,
-                            child: _StatusCard(
-                              isCheckedIn: isCheckedIn,
-                              locationStatus: locationStatus,
-                              lastAction: lastAction,
-                            ),
-                          ),
-                        ],
-                      )
-                    else ...[
-                      _ProfileCard(
-                        employeeName: employeeName,
-                        employeeRole: employeeRole,
-                        shift: shift,
-                        timeStr: timeStr,
-                        dateStr: dateStr,
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.asset(
+                          'assets/icons/app_icon.jpg',
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                      const SizedBox(height: 14),
-                      _StatusCard(
-                        isCheckedIn: isCheckedIn,
-                        locationStatus: locationStatus,
-                        lastAction: lastAction,
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    _ActionButtons(
-                      isCheckedIn: isCheckedIn,
-                      onCheckIn: () => _checkIn(timeStr),
-                      onCheckOut: () => _checkOut(timeStr),
-                      isWide: isWide,
                     ),
                     const SizedBox(height: 14),
-                    _QuickMenu(
-                      onHistory: () {},
-                      onLeave: () {},
-                      onProfile: () {},
-                      isWide: isWide,
+                    _HeaderCard(
+                      employeeName: employeeName,
+                      employeeNik: employeeNik,
+                      employeeRole: employeeRole,
+                      employeeDepartment: employeeDepartment,
+                      onTap: _openProfilePage,
+                    ),
+                    const SizedBox(height: 12),
+                    _InfoBulanIniCard(
+                      totalHadir: totalHadir,
+                      totalCuti: totalCuti,
+                      totalExtraOff: totalExtraOff,
+                      totalSakit: totalSakit,
+                      totalLembur: totalLembur,
+                      leaveSubmissionStatus: leaveSubmissionStatus,
+                      attendanceStatus: switch (attendanceState) {
+                        AttendanceSessionState.notCheckedIn => 'Belum Absen',
+                        AttendanceSessionState.checkedIn => 'Sudah Absen Masuk',
+                        AttendanceSessionState.checkedOut =>
+                          'Sudah Absen Pulang',
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _MainMenuCard(
+                      jam: jam,
+                      hari: hari,
+                      tanggal: tanggal,
+                      attendanceState: attendanceState,
+                      checkInAt: checkInAt,
+                      checkOutAt: checkOutAt,
+                      onAbsenMasuk: _openAbsenMasukPage,
+                      onAbsenPulang: _openAbsenPulangPage,
+                      onAjukanIzin: () {
+                        _openAjukanIzinPage();
+                      },
+                      onRiwayat: () {},
                     ),
                     const SizedBox(height: 20),
                     Center(
                       child: Text(
                         'Copyright King Royal Hotel - v1.0',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileCard extends StatelessWidget {
-  final String employeeName;
-  final String employeeRole;
-  final String shift;
-  final String timeStr;
-  final String dateStr;
-
-  const _ProfileCard({
-    required this.employeeName,
-    required this.employeeRole,
-    required this.shift,
-    required this.timeStr,
-    required this.dateStr,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 360;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        employeeName.isNotEmpty
-                            ? employeeName[0].toUpperCase()
-                            : 'A',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: cs.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            employeeName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            employeeRole,
-                            style: TextStyle(color: cs.onSurfaceVariant),
-                          ),
-                          Text(shift, style: TextStyle(color: cs.onSurfaceVariant)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                if (compact)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        timeStr,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(dateStr, style: TextStyle(color: cs.onSurfaceVariant)),
-                    ],
-                  )
-                else
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Waktu Saat Ini',
-                        style: TextStyle(color: cs.onSurfaceVariant),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            timeStr,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(dateStr, style: TextStyle(color: cs.onSurfaceVariant)),
-                        ],
-                      ),
-                    ],
-                  ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusCard extends StatelessWidget {
-  final bool isCheckedIn;
-  final String locationStatus;
-  final String? lastAction;
-
-  const _StatusCard({
-    required this.isCheckedIn,
-    required this.locationStatus,
-    required this.lastAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Status Hari Ini',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                Chip(label: Text(isCheckedIn ? 'Sudah Check In' : 'Belum Check In')),
-                Chip(label: Text(locationStatus)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(value: isCheckedIn ? 1 : 0),
-            const SizedBox(height: 10),
-            Text(
-              lastAction ?? 'Belum ada aktivitas.',
-              style: TextStyle(color: cs.onSurfaceVariant),
             ),
           ],
         ),
@@ -348,122 +278,174 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
-class _ActionButtons extends StatelessWidget {
-  final bool isCheckedIn;
-  final VoidCallback onCheckIn;
-  final VoidCallback onCheckOut;
-  final bool isWide;
+class _HeaderCard extends StatelessWidget {
+  final String employeeName;
+  final String employeeNik;
+  final String employeeRole;
+  final String employeeDepartment;
+  final VoidCallback onTap;
 
-  const _ActionButtons({
-    required this.isCheckedIn,
-    required this.onCheckIn,
-    required this.onCheckOut,
-    required this.isWide,
+  const _HeaderCard({
+    required this.employeeName,
+    required this.employeeNik,
+    required this.employeeRole,
+    required this.employeeDepartment,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (isWide) {
-      return Row(
-        children: [
-          SizedBox(
-            width: 180,
-            child: FilledButton(
-              onPressed: isCheckedIn ? null : onCheckIn,
-              child: const Text('Check In'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 180,
-            child: FilledButton.tonal(
-              onPressed: isCheckedIn ? onCheckOut : null,
-              child: const Text('Check Out'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: FilledButton(
-            onPressed: isCheckedIn ? null : onCheckIn,
-            child: const Text('Check In'),
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 36,
+                backgroundImage: const AssetImage('assets/icons/app_icon.jpg'),
+                backgroundColor: cs.primaryContainer,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Selamat Datang',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                employeeName,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'NIK: $employeeNik',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              Text(
+                employeeRole,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              Text(
+                employeeDepartment,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Ketuk untuk lihat profil',
+                style: TextStyle(
+                  color: cs.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: FilledButton.tonal(
-            onPressed: isCheckedIn ? onCheckOut : null,
-            child: const Text('Check Out'),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _QuickMenu extends StatelessWidget {
-  final VoidCallback onHistory;
-  final VoidCallback onLeave;
-  final VoidCallback onProfile;
-  final bool isWide;
+class _InfoBulanIniCard extends StatelessWidget {
+  final int totalHadir;
+  final int totalCuti;
+  final int totalExtraOff;
+  final int totalSakit;
+  final int totalLembur;
+  final LeaveSubmissionStatus leaveSubmissionStatus;
+  final String attendanceStatus;
 
-  const _QuickMenu({
-    required this.onHistory,
-    required this.onLeave,
-    required this.onProfile,
-    required this.isWide,
+  const _InfoBulanIniCard({
+    required this.totalHadir,
+    required this.totalCuti,
+    required this.totalExtraOff,
+    required this.totalSakit,
+    required this.totalLembur,
+    required this.leaveSubmissionStatus,
+    required this.attendanceStatus,
   });
 
   @override
   Widget build(BuildContext context) {
-    final menus = [
-      _MenuItem(label: 'Riwayat', onPressed: onHistory),
-      _MenuItem(label: 'Izin', onPressed: onLeave),
-      _MenuItem(label: 'Profil', onPressed: onProfile),
+    final cs = Theme.of(context).colorScheme;
+    final infoItems = [
+      _InfoLine(label: 'Total Hadir', value: '$totalHadir hari'),
+      _InfoLine(label: 'Total Cuti', value: '$totalCuti hari'),
+      _InfoLine(label: 'Total Extra Off', value: '$totalExtraOff hari'),
+      _InfoLine(label: 'Total Sakit', value: '$totalSakit hari'),
+      _InfoLine(label: 'Total Lembur', value: '$totalLembur jam'),
+      _InfoLine(label: 'Status Absen Hari Ini', value: attendanceStatus),
     ];
 
     return Card(
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Menu Cepat',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              'Info Bulan Ini',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
-            if (isWide)
-              Row(
-                children: menus
-                    .map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: OutlinedButton(
-                          onPressed: item.onPressed,
-                          child: Text(item.label),
-                        ),
+            ...infoItems.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.label,
+                        style: TextStyle(color: cs.onSurfaceVariant),
                       ),
-                    )
-                    .toList(),
-              )
-            else
-              Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                children: menus
-                    .map(
-                      (item) => OutlinedButton(
-                        onPressed: item.onPressed,
-                        child: Text(item.label),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      item.value,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: item.label.contains('Status')
+                            ? cs.primary
+                            : cs.onSurface,
                       ),
-                    )
-                    .toList(),
+                    ),
+                  ],
+                ),
               ),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Status Pengajuan Izin',
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _LeaveStatusBadge(status: leaveSubmissionStatus),
+              ],
+            ),
           ],
         ),
       ),
@@ -471,9 +453,231 @@ class _QuickMenu extends StatelessWidget {
   }
 }
 
-class _MenuItem {
-  final String label;
-  final VoidCallback onPressed;
+enum AttendanceSessionState { notCheckedIn, checkedIn, checkedOut }
 
-  _MenuItem({required this.label, required this.onPressed});
+enum LeaveSubmissionStatus { approved, pending, rejected, none }
+
+extension LeaveSubmissionStatusX on LeaveSubmissionStatus {
+  String get label {
+    switch (this) {
+      case LeaveSubmissionStatus.approved:
+        return 'Approve';
+      case LeaveSubmissionStatus.pending:
+        return 'Pending';
+      case LeaveSubmissionStatus.rejected:
+        return 'Tolak';
+      case LeaveSubmissionStatus.none:
+        return 'Tidak Ada';
+    }
+  }
+}
+
+class _LeaveStatusBadge extends StatelessWidget {
+  final LeaveSubmissionStatus status;
+
+  const _LeaveStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (bgColor, textColor) = switch (status) {
+      LeaveSubmissionStatus.approved => (const Color(0xFF2E7D32), Colors.white),
+      LeaveSubmissionStatus.pending => (
+        const Color(0xFFFBC02D),
+        const Color(0xFF3A2A00),
+      ),
+      LeaveSubmissionStatus.rejected => (const Color(0xFFC62828), Colors.white),
+      LeaveSubmissionStatus.none => (const Color(0xFF9E9E9E), Colors.white),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status.label,
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoLine {
+  final String label;
+  final String value;
+
+  const _InfoLine({required this.label, required this.value});
+}
+
+class _MainMenuCard extends StatelessWidget {
+  final String jam;
+  final String hari;
+  final String tanggal;
+  final AttendanceSessionState attendanceState;
+  final DateTime? checkInAt;
+  final DateTime? checkOutAt;
+  final VoidCallback onAbsenMasuk;
+  final VoidCallback onAbsenPulang;
+  final VoidCallback onAjukanIzin;
+  final VoidCallback onRiwayat;
+
+  const _MainMenuCard({
+    required this.jam,
+    required this.hari,
+    required this.tanggal,
+    required this.attendanceState,
+    required this.checkInAt,
+    required this.checkOutAt,
+    required this.onAbsenMasuk,
+    required this.onAbsenPulang,
+    required this.onAjukanIzin,
+    required this.onRiwayat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final menus = [
+      _MainMenuItem(
+        title: 'Absen Masuk',
+        icon: Icons.login_rounded,
+        color: cs.primary,
+        isEnabled: attendanceState == AttendanceSessionState.notCheckedIn,
+        onTap: onAbsenMasuk,
+      ),
+      _MainMenuItem(
+        title: 'Absen Pulang',
+        icon: Icons.logout_rounded,
+        color: cs.secondary,
+        isEnabled: attendanceState == AttendanceSessionState.checkedIn,
+        onTap: onAbsenPulang,
+      ),
+      _MainMenuItem(
+        title: 'Ajukan Izin',
+        icon: Icons.note_add_rounded,
+        color: const Color(0xFF2A8F64),
+        onTap: onAjukanIzin,
+      ),
+      _MainMenuItem(
+        title: 'Riwayat',
+        icon: Icons.history_rounded,
+        color: const Color(0xFF8949B3),
+        onTap: onRiwayat,
+      ),
+    ];
+
+    return Card(
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Menu Utama',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              jam,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            Text(hari, style: TextStyle(color: cs.onSurfaceVariant)),
+            Text(tanggal, style: TextStyle(color: cs.onSurfaceVariant)),
+            if (checkInAt != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Absen masuk pada ${DateFormat('HH:mm:ss', 'id_ID').format(checkInAt!)} WIB',
+                style: TextStyle(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            if (checkOutAt != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Absen pulang pada ${DateFormat('HH:mm:ss', 'id_ID').format(checkOutAt!)} WIB',
+                style: TextStyle(
+                  color: cs.secondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            GridView.count(
+              crossAxisCount: 2,
+              childAspectRatio: 1.45,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: menus.map((item) => _MenuTile(item: item)).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MainMenuItem {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final bool isEnabled;
+  final VoidCallback onTap;
+
+  const _MainMenuItem({
+    required this.title,
+    required this.icon,
+    required this.color,
+    this.isEnabled = true,
+    required this.onTap,
+  });
+}
+
+class _MenuTile extends StatelessWidget {
+  final _MainMenuItem item;
+
+  const _MenuTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final tileColor = item.isEnabled
+        ? item.color.withValues(alpha: 0.14)
+        : const Color(0xFFE0E0E0);
+    final iconColor = item.isEnabled ? item.color : const Color(0xFF9E9E9E);
+    final textColor = item.isEnabled ? Colors.black87 : const Color(0xFF9E9E9E);
+
+    return Material(
+      color: tileColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: item.isEnabled ? item.onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(item.icon, color: iconColor),
+              const SizedBox(height: 10),
+              Text(
+                item.title,
+                style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

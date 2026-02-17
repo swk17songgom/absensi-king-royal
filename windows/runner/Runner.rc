@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "absensi_king_royal" "\0"
+            VALUE "FileDescription", "Absensi King Royal" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "absensi_king_royal" "\0"
+            VALUE "InternalName", "Absensi King Royal" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "absensi_king_royal.exe" "\0"
-            VALUE "ProductName", "absensi_king_royal" "\0"
+            VALUE "OriginalFilename", "Absensi King Royal.exe" "\0"
+            VALUE "ProductName", "Absensi King Royal" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
