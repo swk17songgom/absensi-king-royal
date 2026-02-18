@@ -39,8 +39,10 @@ class EmployeeProfilePage extends StatelessWidget {
   final int totalCuti;
   final int totalExtraOff;
   final int totalSakit;
+  final int totalTidakHadir;
   final int totalLembur;
   final List<LeaveHistoryItem> leaveHistory;
+  final VoidCallback onResetPassword;
   final VoidCallback onLogout;
 
   const EmployeeProfilePage({
@@ -56,8 +58,10 @@ class EmployeeProfilePage extends StatelessWidget {
     required this.totalCuti,
     required this.totalExtraOff,
     required this.totalSakit,
+    required this.totalTidakHadir,
     required this.totalLembur,
     required this.leaveHistory,
+    required this.onResetPassword,
     required this.onLogout,
   });
 
@@ -147,6 +151,10 @@ class EmployeeProfilePage extends StatelessWidget {
                             value: '$totalSakit hari',
                           ),
                           _StatChip(
+                            label: 'Total Tidak Hadir',
+                            value: '$totalTidakHadir hari',
+                          ),
+                          _StatChip(
                             label: 'Total Lembur',
                             value: '$totalLembur jam',
                           ),
@@ -186,6 +194,12 @@ class EmployeeProfilePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: onResetPassword,
+                icon: const Icon(Icons.lock_reset_rounded),
+                label: const Text('Reset Password'),
+              ),
+              const SizedBox(height: 10),
               FilledButton.icon(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(

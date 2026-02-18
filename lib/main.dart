@@ -4,6 +4,11 @@ import 'package:absensi_king_royal/absen_masuk_page.dart';
 import 'package:absensi_king_royal/absen_pulang_page.dart';
 import 'package:absensi_king_royal/ajukan_izin_page.dart';
 import 'package:absensi_king_royal/attendance_capture_page.dart';
+import 'package:absensi_king_royal/admin_dashboard_section.dart';
+import 'package:absensi_king_royal/auth_service.dart';
+import 'package:absensi_king_royal/login_page.dart';
+import 'package:absensi_king_royal/riwayat_page.dart';
+import 'package:absensi_king_royal/reset_password_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
@@ -15,8 +20,33 @@ Future<void> main() async {
   runApp(const AbsensiKingRoyalApp());
 }
 
-class AbsensiKingRoyalApp extends StatelessWidget {
+class AbsensiKingRoyalApp extends StatefulWidget {
   const AbsensiKingRoyalApp({super.key});
+
+  @override
+  State<AbsensiKingRoyalApp> createState() => _AbsensiKingRoyalAppState();
+}
+
+class _AbsensiKingRoyalAppState extends State<AbsensiKingRoyalApp> {
+  final AuthService _authService = AuthService();
+  AppUser? _loggedInUser;
+  bool _rememberMe = false;
+
+  void _handleLoginSuccess(AppUser user, bool rememberMe) {
+    setState(() {
+      _loggedInUser = user;
+      _rememberMe = rememberMe;
+    });
+  }
+
+  void _handleLogout() {
+    setState(() {
+      _loggedInUser = null;
+      if (!_rememberMe) {
+        _rememberMe = false;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,13 +66,31 @@ class AbsensiKingRoyalApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F8FB),
       ),
-      home: const HomeScreen(),
+      home: _loggedInUser == null
+          ? LoginPage(
+              authService: _authService,
+              onLoginSuccess: _handleLoginSuccess,
+            )
+          : HomeScreen(
+              currentUser: _loggedInUser!,
+              authService: _authService,
+              onLogout: _handleLogout,
+            ),
     );
   }
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final AppUser currentUser;
+  final AuthService authService;
+  final VoidCallback onLogout;
+
+  const HomeScreen({
+    super.key,
+    required this.currentUser,
+    required this.authService,
+    required this.onLogout,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -52,18 +100,19 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
   DateTime _now = DateTime.now();
 
-  final String employeeName = 'Nama Karyawan';
-  final String employeeNik = '3276XXXXXXXXXXXX';
-  final String employeeRole = 'Jabatan';
-  final String employeeDepartment = 'Departemen';
-  final String employeePhone = '0812-3456-7890';
-  final String employeeEmail = 'karyawan@kingroyal.com';
+  late final String employeeName;
+  late final String employeeNik;
+  late final String employeeRole;
+  late final String employeeDepartment;
+  late final String employeePhone;
+  late final String employeeEmail;
   final String joinedDate = '12 Januari 2024';
 
   int totalHadir = 22;
   int totalCuti = 1;
   int totalExtraOff = 2;
   int totalSakit = 0;
+  int totalTidakHadir = 1;
   int totalLembur = 7;
 
   AttendanceSessionState attendanceState = AttendanceSessionState.notCheckedIn;
@@ -86,6 +135,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    employeeName = widget.currentUser.fullName;
+    employeeNik = widget.currentUser.nik;
+    employeeRole = widget.currentUser.role;
+    employeeDepartment = widget.currentUser.department;
+    employeePhone = widget.currentUser.phoneNumber;
+    employeeEmail = widget.currentUser.email;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _now = DateTime.now());
@@ -166,17 +221,34 @@ class _HomeScreenState extends State<HomeScreen> {
           totalCuti: totalCuti,
           totalExtraOff: totalExtraOff,
           totalSakit: totalSakit,
+          totalTidakHadir: totalTidakHadir,
           totalLembur: totalLembur,
           leaveHistory: leaveHistory,
+          onResetPassword: _openResetPasswordPage,
           onLogout: () {
             Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Anda telah log out.')),
-            );
+            widget.onLogout();
           },
         ),
       ),
     );
+  }
+
+  void _openResetPasswordPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResetPasswordPage(
+          authService: widget.authService,
+          user: widget.currentUser,
+        ),
+      ),
+    );
+  }
+
+  void _openRiwayatPage() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const RiwayatPage()));
   }
 
   @override
@@ -256,8 +328,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       onAjukanIzin: () {
                         _openAjukanIzinPage();
                       },
-                      onRiwayat: () {},
+                      onRiwayat: _openRiwayatPage,
                     ),
+                    AdminDashboardSection(currentUserName: employeeName),
                     const SizedBox(height: 20),
                     Center(
                       child: Text(
