@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 
 enum AdminRole { admin, staff }
 
-enum ApprovalType { izin, cuti, lembur }
+enum ApprovalType { izin, cuti, off, lembur }
 
 enum ApprovalStatus { pending, approved, rejected }
 
@@ -15,6 +15,7 @@ class _MonthlyRecap {
   final int month;
   final int year;
   final int totalHadir;
+  final int totalOff;
   final int totalTidakHadir;
   final int totalCuti;
   final int totalExtraOff;
@@ -27,6 +28,7 @@ class _MonthlyRecap {
     required this.month,
     required this.year,
     required this.totalHadir,
+    required this.totalOff,
     required this.totalTidakHadir,
     required this.totalCuti,
     required this.totalExtraOff,
@@ -40,7 +42,7 @@ class _ApprovalRequest {
   final String id;
   final String employeeName;
   final ApprovalType type;
-  final String reason;
+  final String? reason;
   final DateTime date;
   final String? attachment;
   ApprovalStatus status = ApprovalStatus.pending;
@@ -53,6 +55,50 @@ class _ApprovalRequest {
     required this.date,
     required this.attachment,
   });
+}
+
+class _SalarySlip {
+  final String id;
+  final String employeeId;
+  final String employeeName;
+  final int month;
+  final int year;
+  int gajiPokok;
+  int tunjanganHadir;
+  int upahLembur;
+  int insentifOff;
+  int insentifExtraOff;
+  int potonganAlfa;
+  int potonganTidakHadir;
+  String notes;
+  final DateTime generatedAt;
+  DateTime? sentAt;
+
+  _SalarySlip({
+    required this.id,
+    required this.employeeId,
+    required this.employeeName,
+    required this.month,
+    required this.year,
+    required this.gajiPokok,
+    required this.tunjanganHadir,
+    required this.upahLembur,
+    required this.insentifOff,
+    required this.insentifExtraOff,
+    required this.potonganAlfa,
+    required this.potonganTidakHadir,
+    required this.notes,
+    required this.generatedAt,
+  });
+
+  int get totalGaji =>
+      gajiPokok +
+      tunjanganHadir +
+      upahLembur +
+      insentifOff +
+      insentifExtraOff -
+      potonganAlfa -
+      potonganTidakHadir;
 }
 
 class _EmployeeData {
@@ -125,6 +171,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
   late final List<_MonthlyRecap> _recapData;
   late final List<_ApprovalRequest> _approvalRequests;
   late final List<_EmployeeData> _employees;
+  final List<_SalarySlip> _salarySlips = [];
   final List<_ActivityLog> _activityLogs = [];
 
   @override
@@ -140,6 +187,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         month: now.month,
         year: now.year,
         totalHadir: 20,
+        totalOff: 1,
         totalTidakHadir: 1,
         totalCuti: 1,
         totalExtraOff: 1,
@@ -152,6 +200,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         month: now.month,
         year: now.year,
         totalHadir: 19,
+        totalOff: 1,
         totalTidakHadir: 2,
         totalCuti: 1,
         totalExtraOff: 0,
@@ -164,6 +213,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         month: now.month,
         year: now.year,
         totalHadir: 18,
+        totalOff: 0,
         totalTidakHadir: 3,
         totalCuti: 0,
         totalExtraOff: 1,
@@ -176,6 +226,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         month: now.month == 1 ? 12 : now.month - 1,
         year: now.month == 1 ? now.year - 1 : now.year,
         totalHadir: 21,
+        totalOff: 1,
         totalTidakHadir: 0,
         totalCuti: 0,
         totalExtraOff: 1,
@@ -188,6 +239,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         month: now.month == 1 ? 12 : now.month - 1,
         year: now.month == 1 ? now.year - 1 : now.year,
         totalHadir: 20,
+        totalOff: 0,
         totalTidakHadir: 1,
         totalCuti: 1,
         totalExtraOff: 0,
@@ -221,6 +273,14 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         reason: 'Persiapan event ballroom',
         date: now.subtract(const Duration(days: 2)),
         attachment: 'foto_kegiatan.jpg',
+      ),
+      _ApprovalRequest(
+        id: 'REQ-004',
+        employeeName: 'Ari Saputra',
+        type: ApprovalType.off,
+        reason: null,
+        date: now,
+        attachment: null,
       ),
     ];
 
@@ -298,6 +358,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     final hadir = _sum((e) => e.totalHadir);
     final totalHari =
         hadir +
+        _sum((e) => e.totalOff) +
         _sum((e) => e.totalTidakHadir) +
         _sum((e) => e.totalCuti) +
         _sum((e) => e.totalExtraOff) +
@@ -353,6 +414,264 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     _addLog(
       '$action pengajuan',
       '${request.employeeName} - ${_labelApprovalType(request.type)}',
+    );
+  }
+
+  _MonthlyRecap? _findRecapByEmployee(String employeeName) {
+    for (final recap in _currentRecapData) {
+      if (recap.employeeName == employeeName) return recap;
+    }
+    return null;
+  }
+
+  int _safeParseInt(String value, int fallback) {
+    final parsed = int.tryParse(value.trim());
+    return parsed ?? fallback;
+  }
+
+  _SalarySlip _createSalarySlip(_EmployeeData employee, _MonthlyRecap? recap) {
+    final gajiPokok = employee.role == AdminRole.admin ? 6500000 : 4200000;
+    final totalHadir = recap?.totalHadir ?? 0;
+    final totalLembur = recap?.totalLembur ?? 0;
+    final totalOff = recap?.totalOff ?? 0;
+    final totalExtraOff = recap?.totalExtraOff ?? 0;
+    final totalAlfa = recap?.totalAlfa ?? 0;
+    final totalTidakHadir = recap?.totalTidakHadir ?? 0;
+
+    return _SalarySlip(
+      id: 'SLIP-${DateTime.now().millisecondsSinceEpoch}-${employee.id}',
+      employeeId: employee.id,
+      employeeName: employee.fullName,
+      month: _selectedMonth,
+      year: _selectedYear,
+      gajiPokok: gajiPokok,
+      tunjanganHadir: totalHadir * 35000,
+      upahLembur: totalLembur * 25000,
+      insentifOff: totalOff * 15000,
+      insentifExtraOff: totalExtraOff * 25000,
+      potonganAlfa: totalAlfa * 100000,
+      potonganTidakHadir: totalTidakHadir * 50000,
+      notes: 'Dihitung otomatis dari rekap absensi periode berjalan.',
+      generatedAt: DateTime.now(),
+    );
+  }
+
+  void _generateSlipForEmployee(_EmployeeData employee) {
+    final recap = _findRecapByEmployee(employee.fullName);
+    final newSlip = _createSalarySlip(employee, recap);
+
+    setState(() {
+      _salarySlips.removeWhere(
+        (item) =>
+            item.employeeId == employee.id &&
+            item.month == _selectedMonth &&
+            item.year == _selectedYear,
+      );
+      _salarySlips.insert(0, newSlip);
+    });
+
+    _addLog(
+      'Generate slip gaji',
+      '${employee.fullName} ($_selectedMonth/$_selectedYear)',
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Slip gaji ${employee.fullName} berhasil digenerate.'),
+      ),
+    );
+  }
+
+  void _generateAllSlips() {
+    final activeEmployees = _employees
+        .where((employee) => employee.isActive)
+        .toList();
+    if (activeEmployees.isEmpty) return;
+
+    setState(() {
+      for (final employee in activeEmployees) {
+        final recap = _findRecapByEmployee(employee.fullName);
+        final newSlip = _createSalarySlip(employee, recap);
+        _salarySlips.removeWhere(
+          (item) =>
+              item.employeeId == employee.id &&
+              item.month == _selectedMonth &&
+              item.year == _selectedYear,
+        );
+        _salarySlips.add(newSlip);
+      }
+      _salarySlips.sort((a, b) => b.generatedAt.compareTo(a.generatedAt));
+    });
+
+    _addLog(
+      'Generate massal slip gaji',
+      'Periode $_selectedMonth/$_selectedYear',
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Berhasil generate ${activeEmployees.length} slip gaji.'),
+      ),
+    );
+  }
+
+  Future<void> _editSlip(_SalarySlip slip) async {
+    final gajiPokokController = TextEditingController(
+      text: '${slip.gajiPokok}',
+    );
+    final tunjanganHadirController = TextEditingController(
+      text: '${slip.tunjanganHadir}',
+    );
+    final upahLemburController = TextEditingController(
+      text: '${slip.upahLembur}',
+    );
+    final insentifOffController = TextEditingController(
+      text: '${slip.insentifOff}',
+    );
+    final insentifExtraOffController = TextEditingController(
+      text: '${slip.insentifExtraOff}',
+    );
+    final potonganAlfaController = TextEditingController(
+      text: '${slip.potonganAlfa}',
+    );
+    final potonganTidakHadirController = TextEditingController(
+      text: '${slip.potonganTidakHadir}',
+    );
+    final notesController = TextEditingController(text: slip.notes);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Edit Slip ${slip.employeeName}'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: gajiPokokController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Gaji Pokok'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: tunjanganHadirController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Tunjangan Hadir',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: upahLemburController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Upah Lembur'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: insentifOffController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Insentif Off',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: insentifExtraOffController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Insentif Extra Off',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: potonganAlfaController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Potongan Alfa',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: potonganTidakHadirController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Potongan Tidak Hadir',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: notesController,
+                    minLines: 2,
+                    maxLines: 3,
+                    decoration: const InputDecoration(labelText: 'Catatan'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  slip.gajiPokok = _safeParseInt(
+                    gajiPokokController.text,
+                    slip.gajiPokok,
+                  );
+                  slip.tunjanganHadir = _safeParseInt(
+                    tunjanganHadirController.text,
+                    slip.tunjanganHadir,
+                  );
+                  slip.upahLembur = _safeParseInt(
+                    upahLemburController.text,
+                    slip.upahLembur,
+                  );
+                  slip.insentifOff = _safeParseInt(
+                    insentifOffController.text,
+                    slip.insentifOff,
+                  );
+                  slip.insentifExtraOff = _safeParseInt(
+                    insentifExtraOffController.text,
+                    slip.insentifExtraOff,
+                  );
+                  slip.potonganAlfa = _safeParseInt(
+                    potonganAlfaController.text,
+                    slip.potonganAlfa,
+                  );
+                  slip.potonganTidakHadir = _safeParseInt(
+                    potonganTidakHadirController.text,
+                    slip.potonganTidakHadir,
+                  );
+                  slip.notes = notesController.text.trim();
+                });
+                _addLog(
+                  'Edit slip gaji',
+                  '${slip.employeeName} (${slip.month}/${slip.year})',
+                );
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _sendSlip(_SalarySlip slip) {
+    setState(() => slip.sentAt = DateTime.now());
+    _addLog(
+      'Kirim slip gaji',
+      '${slip.employeeName} (${slip.month}/${slip.year})',
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Slip gaji ${slip.employeeName} berhasil dikirim.'),
+      ),
     );
   }
 
@@ -752,6 +1071,8 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         return 'Izin';
       case ApprovalType.cuti:
         return 'Cuti';
+      case ApprovalType.off:
+        return 'Off';
       case ApprovalType.lembur:
         return 'Lembur';
     }
@@ -809,6 +1130,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
           onNameFilterChanged: (value) => setState(() => _nameFilter = value),
           currentRecapData: _currentRecapData,
           totalHadir: _sum((e) => e.totalHadir),
+          totalOff: _sum((e) => e.totalOff),
           totalTidakHadir: _sum((e) => e.totalTidakHadir),
           totalCuti: _sum((e) => e.totalCuti),
           totalExtraOff: _sum((e) => e.totalExtraOff),
@@ -837,6 +1159,22 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
               .take(8)
               .toList(),
           emptyTextColor: cs.onSurfaceVariant,
+        ),
+        const SizedBox(height: 12),
+        _PayrollCard(
+          employees: _employees.where((employee) => employee.isActive).toList(),
+          salarySlips: _salarySlips
+              .where(
+                (slip) =>
+                    slip.month == _selectedMonth && slip.year == _selectedYear,
+              )
+              .toList(),
+          selectedMonth: _selectedMonth,
+          selectedYear: _selectedYear,
+          onGenerateAll: _generateAllSlips,
+          onGenerateEmployee: _generateSlipForEmployee,
+          onEditSlip: _editSlip,
+          onSendSlip: _sendSlip,
         ),
         const SizedBox(height: 12),
         _EmployeeManagementCard(
@@ -909,7 +1247,7 @@ class _OverviewCard extends StatelessWidget {
                 _MetricChip(label: 'Total Karyawan', value: '$totalKaryawan'),
                 _MetricChip(label: 'Hadir Hari Ini', value: '$hadirHariIni'),
                 _MetricChip(
-                  label: 'Pending Izin/Sakit/Lembur',
+                  label: 'Pending Izin/Cuti/Off/Lembur',
                   value: '$totalPending',
                 ),
                 _MetricChip(
@@ -935,6 +1273,7 @@ class _RecapCard extends StatelessWidget {
   final ValueChanged<String> onNameFilterChanged;
   final List<_MonthlyRecap> currentRecapData;
   final int totalHadir;
+  final int totalOff;
   final int totalTidakHadir;
   final int totalCuti;
   final int totalExtraOff;
@@ -957,6 +1296,7 @@ class _RecapCard extends StatelessWidget {
     required this.onNameFilterChanged,
     required this.currentRecapData,
     required this.totalHadir,
+    required this.totalOff,
     required this.totalTidakHadir,
     required this.totalCuti,
     required this.totalExtraOff,
@@ -1055,6 +1395,7 @@ class _RecapCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _MetricChip(label: 'Total Hadir', value: '$totalHadir'),
+                _MetricChip(label: 'Total Off', value: '$totalOff'),
                 _MetricChip(
                   label: 'Total Tidak Hadir',
                   value: '$totalTidakHadir',
@@ -1101,7 +1442,7 @@ class _RecapCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
-                    'Hadir ${item.totalHadir} | Tidak Hadir ${item.totalTidakHadir} | Cuti ${item.totalCuti} | Extra Off ${item.totalExtraOff} | Sakit ${item.totalSakit} | Alfa ${item.totalAlfa} | Lembur ${item.totalLembur} jam',
+                    'Hadir ${item.totalHadir} | Off ${item.totalOff} | Tidak Hadir ${item.totalTidakHadir} | Cuti ${item.totalCuti} | Extra Off ${item.totalExtraOff} | Sakit ${item.totalSakit} | Alfa ${item.totalAlfa} | Lembur ${item.totalLembur} jam',
                   ),
                   trailing: TextButton(
                     onPressed: () => onShowDetail(item),
@@ -1152,7 +1493,7 @@ class _ApprovalCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Approval Izin/Cuti/Lembur',
+              'Approval Izin/Cuti/Off/Lembur',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
@@ -1198,7 +1539,9 @@ class _ApprovalCard extends StatelessWidget {
                       Text(
                         'Tanggal: ${DateFormat('dd MMM yyyy', 'id_ID').format(item.date)}',
                       ),
-                      Text('Alasan: ${item.reason}'),
+                      Text(
+                        'Alasan: ${(item.reason == null || item.reason!.trim().isEmpty) ? '-' : item.reason}',
+                      ),
                       Text('Lampiran: ${item.attachment ?? '-'}'),
                       if (item.status == ApprovalStatus.pending) ...[
                         const SizedBox(height: 8),
@@ -1248,6 +1591,168 @@ class _ApprovalCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     '${DateFormat('dd/MM HH:mm').format(log.time)} - ${log.actor} ${log.action} (${log.target})',
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PayrollCard extends StatelessWidget {
+  final List<_EmployeeData> employees;
+  final List<_SalarySlip> salarySlips;
+  final int selectedMonth;
+  final int selectedYear;
+  final VoidCallback onGenerateAll;
+  final ValueChanged<_EmployeeData> onGenerateEmployee;
+  final ValueChanged<_SalarySlip> onEditSlip;
+  final ValueChanged<_SalarySlip> onSendSlip;
+
+  const _PayrollCard({
+    required this.employees,
+    required this.salarySlips,
+    required this.selectedMonth,
+    required this.selectedYear,
+    required this.onGenerateAll,
+    required this.onGenerateEmployee,
+    required this.onEditSlip,
+    required this.onSendSlip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
+
+    return Card(
+      elevation: 1.2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Payroll & Slip Gaji',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Periode $selectedMonth/$selectedYear - generate dari total hadir, lembur, off, extra off, dan potongan.',
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: onGenerateAll,
+              icon: const Icon(Icons.calculate_rounded),
+              label: const Text('Generate Semua Slip'),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Generate Per Staff',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            ...employees.map(
+              (employee) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(employee.fullName)),
+                    OutlinedButton.icon(
+                      onPressed: () => onGenerateEmployee(employee),
+                      icon: const Icon(Icons.receipt_long_rounded),
+                      label: const Text('Generate'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Slip Terbentuk',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            if (salarySlips.isEmpty)
+              const Text('Belum ada slip untuk periode ini.')
+            else
+              ...salarySlips.map(
+                (slip) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                slip.employeeName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Text('Total: ${currency.format(slip.totalGaji)}'),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text('Gaji Pokok: ${currency.format(slip.gajiPokok)}'),
+                        Text(
+                          'Tunjangan Hadir: ${currency.format(slip.tunjanganHadir)}',
+                        ),
+                        Text(
+                          'Upah Lembur: ${currency.format(slip.upahLembur)}',
+                        ),
+                        Text(
+                          'Insentif Off: ${currency.format(slip.insentifOff)}',
+                        ),
+                        Text(
+                          'Insentif Extra Off: ${currency.format(slip.insentifExtraOff)}',
+                        ),
+                        Text(
+                          'Potongan Alfa: ${currency.format(slip.potonganAlfa)}',
+                        ),
+                        Text(
+                          'Potongan Tidak Hadir: ${currency.format(slip.potonganTidakHadir)}',
+                        ),
+                        Text(
+                          'Catatan: ${slip.notes.isEmpty ? '-' : slip.notes}',
+                        ),
+                        Text(
+                          slip.sentAt == null
+                              ? 'Status: Belum dikirim'
+                              : 'Status: Terkirim ${DateFormat('dd/MM/yyyy HH:mm').format(slip.sentAt!)}',
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.tonal(
+                                onPressed: () => onEditSlip(slip),
+                                child: const Text('Edit'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () => onSendSlip(slip),
+                                child: Text(
+                                  slip.sentAt == null ? 'Kirim' : 'Kirim Ulang',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

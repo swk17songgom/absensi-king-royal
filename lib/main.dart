@@ -118,6 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? employeeProfilePhotoPath;
 
   int totalHadir = 22;
+  int totalOff = 2;
   int totalCuti = 1;
   int totalExtraOff = 2;
   int totalSakit = 0;
@@ -125,6 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int totalLembur = 7;
 
   AttendanceSessionState attendanceState = AttendanceSessionState.notCheckedIn;
+  bool hasPendingOffToday = false;
   DateTime? checkInAt;
   DateTime? checkOutAt;
   LeaveSubmissionStatus leaveSubmissionStatus = LeaveSubmissionStatus.none;
@@ -186,6 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
       checkInAt = result.capturedAt;
       checkOutAt = null;
       attendanceState = AttendanceSessionState.checkedIn;
+      hasPendingOffToday = false;
     });
   }
 
@@ -206,10 +209,15 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _openAjukanIzinPage() async {
+  Future<void> _openAjukanIzinPage({
+    LeaveRequestType initialType = LeaveRequestType.sakit,
+  }) async {
     final result = await Navigator.of(context).push<LeaveSubmissionPayload>(
       MaterialPageRoute(
-        builder: (_) => AjukanIzinPage(leaveHistory: leaveHistory),
+        builder: (_) => AjukanIzinPage(
+          leaveHistory: leaveHistory,
+          initialType: initialType,
+        ),
       ),
     );
 
@@ -220,6 +228,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (result.type == LeaveRequestType.sakit) totalSakit += 1;
       if (result.type == LeaveRequestType.cuti) totalCuti += 1;
       if (result.type == LeaveRequestType.extraOff) totalExtraOff += 1;
+      if (result.type == LeaveRequestType.off) {
+        totalOff += 1;
+        hasPendingOffToday = result.includesToday;
+      }
       if (result.type == LeaveRequestType.lembur) totalLembur += 1;
     });
   }
@@ -334,17 +346,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 12),
                     _InfoBulanIniCard(
                       totalHadir: totalHadir,
+                      totalOff: totalOff,
                       totalCuti: totalCuti,
                       totalExtraOff: totalExtraOff,
                       totalSakit: totalSakit,
                       totalLembur: totalLembur,
                       leaveSubmissionStatus: leaveSubmissionStatus,
-                      attendanceStatus: switch (attendanceState) {
-                        AttendanceSessionState.notCheckedIn => 'Belum Absen',
-                        AttendanceSessionState.checkedIn => 'Sudah Absen Masuk',
-                        AttendanceSessionState.checkedOut =>
-                          'Sudah Absen Pulang',
-                      },
+                      attendanceStatus: hasPendingOffToday
+                          ? 'Pengajuan Off (Menunggu Approval HR)'
+                          : switch (attendanceState) {
+                              AttendanceSessionState.notCheckedIn =>
+                                'Belum Absen',
+                              AttendanceSessionState.checkedIn =>
+                                'Sudah Absen Masuk',
+                              AttendanceSessionState.checkedOut =>
+                                'Sudah Absen Pulang',
+                            },
                     ),
                     const SizedBox(height: 12),
                     _MainMenuCard(
@@ -358,6 +375,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       onAbsenPulang: _openAbsenPulangPage,
                       onAjukanIzin: () {
                         _openAjukanIzinPage();
+                      },
+                      onAjukanOff: () {
+                        _openAjukanIzinPage(initialType: LeaveRequestType.off);
                       },
                       onRiwayat: _openRiwayatPage,
                     ),
@@ -484,6 +504,7 @@ class _HeaderCard extends StatelessWidget {
 
 class _InfoBulanIniCard extends StatelessWidget {
   final int totalHadir;
+  final int totalOff;
   final int totalCuti;
   final int totalExtraOff;
   final int totalSakit;
@@ -493,6 +514,7 @@ class _InfoBulanIniCard extends StatelessWidget {
 
   const _InfoBulanIniCard({
     required this.totalHadir,
+    required this.totalOff,
     required this.totalCuti,
     required this.totalExtraOff,
     required this.totalSakit,
@@ -506,6 +528,7 @@ class _InfoBulanIniCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final infoItems = [
       _InfoLine(label: 'Total Hadir', value: '$totalHadir hari'),
+      _InfoLine(label: 'Total Off', value: '$totalOff hari'),
       _InfoLine(label: 'Total Cuti', value: '$totalCuti hari'),
       _InfoLine(label: 'Total Extra Off', value: '$totalExtraOff hari'),
       _InfoLine(label: 'Total Sakit', value: '$totalSakit hari'),
@@ -642,6 +665,7 @@ class _MainMenuCard extends StatelessWidget {
   final VoidCallback onAbsenMasuk;
   final VoidCallback onAbsenPulang;
   final VoidCallback onAjukanIzin;
+  final VoidCallback onAjukanOff;
   final VoidCallback onRiwayat;
 
   const _MainMenuCard({
@@ -654,6 +678,7 @@ class _MainMenuCard extends StatelessWidget {
     required this.onAbsenMasuk,
     required this.onAbsenPulang,
     required this.onAjukanIzin,
+    required this.onAjukanOff,
     required this.onRiwayat,
   });
 
@@ -680,6 +705,12 @@ class _MainMenuCard extends StatelessWidget {
         icon: Icons.note_add_rounded,
         color: const Color(0xFF2A8F64),
         onTap: onAjukanIzin,
+      ),
+      _MainMenuItem(
+        title: 'Off',
+        icon: Icons.event_busy_rounded,
+        color: const Color(0xFF5E6B73),
+        onTap: onAjukanOff,
       ),
       _MainMenuItem(
         title: 'Riwayat',

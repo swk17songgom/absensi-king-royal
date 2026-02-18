@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-enum LeaveRequestType { sakit, cuti, extraOff, lembur }
+enum LeaveRequestType { sakit, cuti, extraOff, off, lembur }
 
 extension LeaveRequestTypeX on LeaveRequestType {
   String get label {
@@ -14,6 +14,8 @@ extension LeaveRequestTypeX on LeaveRequestType {
         return 'Cuti';
       case LeaveRequestType.extraOff:
         return 'Extra Off';
+      case LeaveRequestType.off:
+        return 'Off';
       case LeaveRequestType.lembur:
         return 'Lembur';
     }
@@ -23,14 +25,24 @@ extension LeaveRequestTypeX on LeaveRequestType {
 class LeaveSubmissionPayload {
   final LeaveHistoryItem historyItem;
   final LeaveRequestType type;
+  final bool includesToday;
 
-  const LeaveSubmissionPayload({required this.historyItem, required this.type});
+  const LeaveSubmissionPayload({
+    required this.historyItem,
+    required this.type,
+    required this.includesToday,
+  });
 }
 
 class AjukanIzinPage extends StatefulWidget {
   final List<LeaveHistoryItem> leaveHistory;
+  final LeaveRequestType initialType;
 
-  const AjukanIzinPage({super.key, required this.leaveHistory});
+  const AjukanIzinPage({
+    super.key,
+    required this.leaveHistory,
+    this.initialType = LeaveRequestType.sakit,
+  });
 
   @override
   State<AjukanIzinPage> createState() => _AjukanIzinPageState();
@@ -41,7 +53,7 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
   final _reasonController = TextEditingController();
   final _picker = ImagePicker();
 
-  LeaveRequestType _selectedType = LeaveRequestType.sakit;
+  late LeaveRequestType _selectedType;
   DateTimeRange? _selectedRange;
   DateTime? _selectedDate;
   int _selectedOvertimeHours = 1;
@@ -52,6 +64,12 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
   void dispose() {
     _reasonController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedType = widget.initialType;
   }
 
   Future<void> _pickRangeDate() async {
@@ -107,11 +125,20 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
     return _selectedRange != null;
   }
 
+  bool get _requiresReason => _selectedType != LeaveRequestType.off;
+
   String _buildTitle() {
     final reason = _reasonController.text.trim();
+    if (_selectedType == LeaveRequestType.off) {
+      return 'Off';
+    }
     if (_selectedType == LeaveRequestType.lembur) {
+      if (reason.isEmpty) {
+        return 'Lembur $_selectedOvertimeHours jam';
+      }
       return 'Lembur $_selectedOvertimeHours jam - $reason';
     }
+    if (reason.isEmpty) return _selectedType.label;
     return '${_selectedType.label} - $reason';
   }
 
@@ -127,8 +154,37 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
     return start == end ? start : '$start - $end';
   }
 
+  bool _includesToday() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (_selectedType == LeaveRequestType.lembur) {
+      if (_selectedDate == null) return false;
+      final selected = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+      );
+      return selected.isAtSameMomentAs(today);
+    }
+
+    if (_selectedRange == null) return false;
+    final start = DateTime(
+      _selectedRange!.start.year,
+      _selectedRange!.start.month,
+      _selectedRange!.start.day,
+    );
+    final end = DateTime(
+      _selectedRange!.end.year,
+      _selectedRange!.end.month,
+      _selectedRange!.end.day,
+    );
+    return !today.isBefore(start) && !today.isAfter(end);
+  }
+
   Future<void> _submit() async {
-    final isValidForm = _formKey.currentState?.validate() ?? false;
+    final isValidForm =
+        !_requiresReason || (_formKey.currentState?.validate() ?? false);
     if (!isValidForm) return;
     if (!_validateDateInput()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -147,15 +203,20 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
       status: LeaveHistoryStatus.pending,
     );
 
-    Navigator.of(
-      context,
-    ).pop(LeaveSubmissionPayload(historyItem: item, type: _selectedType));
+    Navigator.of(context).pop(
+      LeaveSubmissionPayload(
+        historyItem: item,
+        type: _selectedType,
+        includesToday: _includesToday(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isOvertime = _selectedType == LeaveRequestType.lembur;
+    final isOff = _selectedType == LeaveRequestType.off;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ajukan Izin')),
@@ -215,6 +276,9 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
                               _selectedType = value;
                               _selectedRange = null;
                               _selectedDate = null;
+                              if (_selectedType == LeaveRequestType.off) {
+                                _reasonController.clear();
+                              }
                             });
                           },
                         ),
@@ -257,36 +321,42 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
                             icon: const Icon(Icons.calendar_month_rounded),
                             label: Text(
                               _selectedRange == null
-                                  ? 'Pilih Tanggal Izin'
+                                  ? (isOff
+                                        ? 'Pilih Tanggal Off'
+                                        : 'Pilih Tanggal Izin')
                                   : '${DateFormat('dd MMM yyyy', 'id_ID').format(_selectedRange!.start)} - ${DateFormat('dd MMM yyyy', 'id_ID').format(_selectedRange!.end)}',
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Bisa pilih 1 hari atau lebih.',
+                            isOff
+                                ? 'Pengajuan Off tetap menunggu approval HR.'
+                                : 'Bisa pilih 1 hari atau lebih.',
                             style: TextStyle(
                               color: cs.onSurfaceVariant,
                               fontSize: 12,
                             ),
                           ),
                         ],
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _reasonController,
-                          minLines: 3,
-                          maxLines: 5,
-                          decoration: const InputDecoration(
-                            labelText: 'Alasan',
-                            alignLabelWithHint: true,
-                            border: OutlineInputBorder(),
+                        if (!isOff) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _reasonController,
+                            minLines: 3,
+                            maxLines: 5,
+                            decoration: const InputDecoration(
+                              labelText: 'Alasan',
+                              alignLabelWithHint: true,
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Alasan wajib diisi.';
+                              }
+                              return null;
+                            },
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Alasan wajib diisi.';
-                            }
-                            return null;
-                          },
-                        ),
+                        ],
                         const SizedBox(height: 12),
                         Row(
                           children: [
