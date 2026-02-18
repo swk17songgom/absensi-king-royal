@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 enum LeaveHistoryStatus { approved, pending, rejected }
 
@@ -27,14 +31,23 @@ class LeaveHistoryItem {
   });
 }
 
-class EmployeeProfilePage extends StatelessWidget {
+class EmployeeProfilePage extends StatefulWidget {
   final String fullName;
   final String nik;
-  final String jobTitle;
-  final String department;
+  final String placeOfBirth;
+  final DateTime birthDate;
+  final String gender;
+  final String address;
   final String phoneNumber;
   final String email;
-  final String joinedDate;
+  final String jobTitle;
+  final String role;
+  final String department;
+  final String employeeStatus;
+  final DateTime joinDate;
+  final String bankAccountNumber;
+  final String? profilePhotoPath;
+  final ValueChanged<String?> onProfilePhotoChanged;
   final int totalHadir;
   final int totalCuti;
   final int totalExtraOff;
@@ -49,11 +62,20 @@ class EmployeeProfilePage extends StatelessWidget {
     super.key,
     required this.fullName,
     required this.nik,
-    required this.jobTitle,
-    required this.department,
+    required this.placeOfBirth,
+    required this.birthDate,
+    required this.gender,
+    required this.address,
     required this.phoneNumber,
     required this.email,
-    required this.joinedDate,
+    required this.jobTitle,
+    required this.role,
+    required this.department,
+    required this.employeeStatus,
+    required this.joinDate,
+    required this.bankAccountNumber,
+    required this.profilePhotoPath,
+    required this.onProfilePhotoChanged,
     required this.totalHadir,
     required this.totalCuti,
     required this.totalExtraOff,
@@ -66,8 +88,48 @@ class EmployeeProfilePage extends StatelessWidget {
   });
 
   @override
+  State<EmployeeProfilePage> createState() => _EmployeeProfilePageState();
+}
+
+class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
+  String? _profilePhotoPath;
+  bool _isPickingPhoto = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _profilePhotoPath = widget.profilePhotoPath;
+  }
+
+  Future<void> _pickProfilePhoto() async {
+    setState(() => _isPickingPhoto = true);
+    final picker = ImagePicker();
+    final result = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1200,
+    );
+    if (!mounted) return;
+    setState(() => _isPickingPhoto = false);
+    if (result == null) return;
+    setState(() => _profilePhotoPath = result.path);
+    widget.onProfilePhotoChanged(result.path);
+  }
+
+  void _removeProfilePhoto() {
+    setState(() => _profilePhotoPath = null);
+    widget.onProfilePhotoChanged(null);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final hasCustomPhoto =
+        _profilePhotoPath != null && File(_profilePhotoPath!).existsSync();
+    final ImageProvider<Object> profileImage = hasCustomPhoto
+        ? FileImage(File(_profilePhotoPath!))
+        : const AssetImage('assets/icons/app_icon.jpg');
+
     return Scaffold(
       appBar: AppBar(title: const Text('Profil Karyawan')),
       body: Stack(
@@ -92,15 +154,33 @@ class EmployeeProfilePage extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      const CircleAvatar(
-                        radius: 44,
-                        backgroundImage: AssetImage(
-                          'assets/icons/app_icon.jpg',
-                        ),
+                      CircleAvatar(radius: 44, backgroundImage: profileImage),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _isPickingPhoto
+                                ? null
+                                : _pickProfilePhoto,
+                            icon: const Icon(Icons.image_rounded),
+                            label: Text(
+                              _isPickingPhoto
+                                  ? 'Memproses...'
+                                  : 'Ganti Foto Profil',
+                            ),
+                          ),
+                          if (hasCustomPhoto)
+                            OutlinedButton.icon(
+                              onPressed: _removeProfilePhoto,
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Hapus Foto'),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        fullName,
+                        widget.fullName,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -108,12 +188,35 @@ class EmployeeProfilePage extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 10),
-                      _InfoText(label: 'NIK', value: nik),
-                      _InfoText(label: 'Jabatan', value: jobTitle),
-                      _InfoText(label: 'Departemen', value: department),
-                      _InfoText(label: 'Nomor HP', value: phoneNumber),
-                      _InfoText(label: 'Email', value: email),
-                      _InfoText(label: 'Tanggal Bergabung', value: joinedDate),
+                      _InfoText(label: 'Nama Lengkap', value: widget.fullName),
+                      _InfoText(label: 'NIK', value: widget.nik),
+                      _InfoText(
+                        label: 'Tempat, Tanggal Lahir',
+                        value:
+                            '${widget.placeOfBirth}, ${DateFormat('dd MMMM yyyy', 'id_ID').format(widget.birthDate)}',
+                      ),
+                      _InfoText(label: 'Jenis Kelamin', value: widget.gender),
+                      _InfoText(label: 'Alamat', value: widget.address),
+                      _InfoText(label: 'Nomor HP', value: widget.phoneNumber),
+                      _InfoText(label: 'Email', value: widget.email),
+                      _InfoText(label: 'Jabatan', value: widget.jobTitle),
+                      _InfoText(label: 'Role', value: widget.role),
+                      _InfoText(label: 'Departemen', value: widget.department),
+                      _InfoText(
+                        label: 'Status Karyawan',
+                        value: widget.employeeStatus,
+                      ),
+                      _InfoText(
+                        label: 'Tanggal Masuk',
+                        value: DateFormat(
+                          'dd MMMM yyyy',
+                          'id_ID',
+                        ).format(widget.joinDate),
+                      ),
+                      _InfoText(
+                        label: 'No Rekening',
+                        value: widget.bankAccountNumber,
+                      ),
                     ],
                   ),
                 ),
@@ -136,27 +239,27 @@ class EmployeeProfilePage extends StatelessWidget {
                         children: [
                           _StatChip(
                             label: 'Total Hadir',
-                            value: '$totalHadir hari',
+                            value: '${widget.totalHadir} hari',
                           ),
                           _StatChip(
                             label: 'Total Cuti',
-                            value: '$totalCuti hari',
+                            value: '${widget.totalCuti} hari',
                           ),
                           _StatChip(
                             label: 'Total Extra Off',
-                            value: '$totalExtraOff hari',
+                            value: '${widget.totalExtraOff} hari',
                           ),
                           _StatChip(
                             label: 'Total Sakit',
-                            value: '$totalSakit hari',
+                            value: '${widget.totalSakit} hari',
                           ),
                           _StatChip(
                             label: 'Total Tidak Hadir',
-                            value: '$totalTidakHadir hari',
+                            value: '${widget.totalTidakHadir} hari',
                           ),
                           _StatChip(
                             label: 'Total Lembur',
-                            value: '$totalLembur jam',
+                            value: '${widget.totalLembur} jam',
                           ),
                         ],
                       ),
@@ -176,7 +279,7 @@ class EmployeeProfilePage extends StatelessWidget {
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 10),
-                      ...leaveHistory.map(
+                      ...widget.leaveHistory.map(
                         (item) => Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
@@ -195,7 +298,7 @@ class EmployeeProfilePage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: onResetPassword,
+                onPressed: widget.onResetPassword,
                 icon: const Icon(Icons.lock_reset_rounded),
                 label: const Text('Reset Password'),
               ),
@@ -219,7 +322,7 @@ class EmployeeProfilePage extends StatelessWidget {
                   foregroundColor: Colors.white,
                   backgroundColor: cs.error,
                 ),
-                onPressed: onLogout,
+                onPressed: widget.onLogout,
                 icon: const Icon(Icons.logout_rounded),
                 label: const Text('Log Out'),
               ),
@@ -257,7 +360,7 @@ class _InfoText extends StatelessWidget {
               textAlign: TextAlign.right,
               softWrap: true,
               overflow: TextOverflow.visible,
-              maxLines: 3,
+              maxLines: 4,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: isLongValue ? 13 : 14,

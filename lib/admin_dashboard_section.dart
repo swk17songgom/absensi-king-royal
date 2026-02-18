@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 enum AdminRole { admin, staff }
@@ -54,16 +57,40 @@ class _ApprovalRequest {
 
 class _EmployeeData {
   final String id;
-  String name;
+  String fullName;
   String nik;
+  String placeOfBirth;
+  DateTime birthDate;
+  String gender;
+  String address;
+  String phoneNumber;
+  String email;
+  String jobTitle;
   AdminRole role;
+  String department;
+  String employeeStatus;
+  DateTime joinDate;
+  String bankAccountNumber;
+  String? profilePhotoPath;
   bool isActive = true;
 
   _EmployeeData({
     required this.id,
-    required this.name,
+    required this.fullName,
     required this.nik,
+    required this.placeOfBirth,
+    required this.birthDate,
+    required this.gender,
+    required this.address,
+    required this.phoneNumber,
+    required this.email,
+    required this.jobTitle,
     required this.role,
+    required this.department,
+    required this.employeeStatus,
+    required this.joinDate,
+    required this.bankAccountNumber,
+    this.profilePhotoPath,
   });
 }
 
@@ -200,21 +227,54 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     _employees = <_EmployeeData>[
       _EmployeeData(
         id: 'EMP-001',
-        name: 'Ari Saputra',
+        fullName: 'Ari Saputra',
         nik: '327600000001',
+        placeOfBirth: 'Bandung',
+        birthDate: DateTime(1996, 2, 11),
+        gender: 'Laki-laki',
+        address: 'Jl. Ciumbuleuit No. 10, Bandung',
+        phoneNumber: '0812-1111-2222',
+        email: 'ari@kingroyal.com',
+        jobTitle: 'Staff Housekeeping',
         role: AdminRole.staff,
+        department: 'Housekeeping',
+        employeeStatus: 'Tetap',
+        joinDate: DateTime(2023, 10, 15),
+        bankAccountNumber: '201001223344',
       ),
       _EmployeeData(
         id: 'EMP-002',
-        name: 'Dinda Maharani',
+        fullName: 'Dinda Maharani',
         nik: '327600000002',
+        placeOfBirth: 'Bandung',
+        birthDate: DateTime(1994, 6, 12),
+        gender: 'Perempuan',
+        address: 'Jl. Setiabudi No. 18, Bandung',
+        phoneNumber: '0812-3456-7890',
+        email: 'dinda@kingroyal.com',
+        jobTitle: 'Supervisor HR',
         role: AdminRole.admin,
+        department: 'Human Capital',
+        employeeStatus: 'Tetap',
+        joinDate: DateTime(2024, 1, 12),
+        bankAccountNumber: '201001334455',
       ),
       _EmployeeData(
         id: 'EMP-003',
-        name: 'Reno Pratama',
+        fullName: 'Reno Pratama',
         nik: '327600000003',
+        placeOfBirth: 'Jakarta',
+        birthDate: DateTime(1998, 9, 3),
+        gender: 'Laki-laki',
+        address: 'Jl. Cempaka Putih No. 22, Jakarta',
+        phoneNumber: '0812-0000-1111',
+        email: 'reno@kingroyal.com',
+        jobTitle: 'Staff Operasional',
         role: AdminRole.staff,
+        department: 'Front Office',
+        employeeStatus: 'Kontrak',
+        joinDate: DateTime(2025, 3, 1),
+        bankAccountNumber: '201001556677',
       ),
     ];
   }
@@ -297,152 +357,350 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
   }
 
   Future<void> _showAddEmployeeDialog() async {
-    final nameController = TextEditingController();
-    final nikController = TextEditingController();
-    AdminRole role = AdminRole.staff;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Tambah Karyawan'),
-          content: StatefulBuilder(
-            builder: (context, setInnerState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Nama'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: nikController,
-                    decoration: const InputDecoration(labelText: 'NIK'),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<AdminRole>(
-                    value: role,
-                    items: const [
-                      DropdownMenuItem(
-                        value: AdminRole.admin,
-                        child: Text('Admin'),
-                      ),
-                      DropdownMenuItem(
-                        value: AdminRole.staff,
-                        child: Text('Staff'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setInnerState(() => role = value);
-                    },
-                    decoration: const InputDecoration(labelText: 'Role'),
-                  ),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (nameController.text.trim().isEmpty ||
-                    nikController.text.trim().isEmpty) {
-                  return;
-                }
-                setState(() {
-                  _employees.insert(
-                    0,
-                    _EmployeeData(
-                      id: 'EMP-${DateTime.now().millisecondsSinceEpoch}',
-                      name: nameController.text.trim(),
-                      nik: nikController.text.trim(),
-                      role: role,
-                    ),
-                  );
-                });
-                _addLog('Tambah karyawan', nameController.text.trim());
-                Navigator.pop(context);
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
-        );
-      },
-    );
+    await _showEmployeeDialog();
   }
 
   Future<void> _showEditEmployeeDialog(_EmployeeData employee) async {
-    final nameController = TextEditingController(text: employee.name);
-    final nikController = TextEditingController(text: employee.nik);
-    AdminRole role = employee.role;
+    await _showEmployeeDialog(employee: employee);
+  }
+
+  Future<void> _showEmployeeDialog({_EmployeeData? employee}) async {
+    final isEdit = employee != null;
+    final fullNameController = TextEditingController(
+      text: employee?.fullName ?? '',
+    );
+    final nikController = TextEditingController(text: employee?.nik ?? '');
+    final placeOfBirthController = TextEditingController(
+      text: employee?.placeOfBirth ?? '',
+    );
+    final addressController = TextEditingController(
+      text: employee?.address ?? '',
+    );
+    final phoneController = TextEditingController(
+      text: employee?.phoneNumber ?? '',
+    );
+    final emailController = TextEditingController(text: employee?.email ?? '');
+    final jobTitleController = TextEditingController(
+      text: employee?.jobTitle ?? '',
+    );
+    final departmentController = TextEditingController(
+      text: employee?.department ?? '',
+    );
+    final bankAccountController = TextEditingController(
+      text: employee?.bankAccountNumber ?? '',
+    );
+    var role = employee?.role ?? AdminRole.staff;
+    var gender = employee?.gender ?? 'Laki-laki';
+    var employeeStatus = employee?.employeeStatus ?? 'Tetap';
+    var birthDate = employee?.birthDate ?? DateTime(2000, 1, 1);
+    var joinDate = employee?.joinDate ?? DateTime.now();
+    String? profilePhotoPath = employee?.profilePhotoPath;
+    final picker = ImagePicker();
+
+    Future<void> pickDate({
+      required DateTime initialDate,
+      required ValueChanged<DateTime> onPicked,
+    }) async {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: DateTime(1970),
+        lastDate: DateTime.now().add(const Duration(days: 3650)),
+      );
+      if (picked == null) return;
+      onPicked(picked);
+    }
 
     await showDialog<void>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Edit Karyawan'),
+          title: Text(isEdit ? 'Edit Karyawan' : 'Tambah Karyawan'),
           content: StatefulBuilder(
             builder: (context, setInnerState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Nama'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: nikController,
-                    decoration: const InputDecoration(labelText: 'NIK'),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<AdminRole>(
-                    value: role,
-                    items: const [
-                      DropdownMenuItem(
-                        value: AdminRole.admin,
-                        child: Text('Admin'),
+              final hasPhoto =
+                  profilePhotoPath != null &&
+                  File(profilePhotoPath!).existsSync();
+              return SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 36,
+                        backgroundImage: hasPhoto
+                            ? FileImage(File(profilePhotoPath!))
+                            : const AssetImage('assets/icons/app_icon.jpg')
+                                  as ImageProvider<Object>,
                       ),
-                      DropdownMenuItem(
-                        value: AdminRole.staff,
-                        child: Text('Staff'),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await picker.pickImage(
+                                source: ImageSource.gallery,
+                                imageQuality: 80,
+                                maxWidth: 1200,
+                              );
+                              if (picked == null) return;
+                              setInnerState(
+                                () => profilePhotoPath = picked.path,
+                              );
+                            },
+                            icon: const Icon(Icons.image_rounded),
+                            label: const Text('Pilih Foto'),
+                          ),
+                          if (hasPhoto)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setInnerState(() => profilePhotoPath = null);
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Hapus'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: fullNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nama Lengkap',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: nikController,
+                        decoration: const InputDecoration(labelText: 'NIK'),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: placeOfBirthController,
+                              decoration: const InputDecoration(
+                                labelText: 'Tempat Lahir',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                await pickDate(
+                                  initialDate: birthDate,
+                                  onPicked: (value) {
+                                    setInnerState(() => birthDate = value);
+                                  },
+                                );
+                              },
+                              child: Text(
+                                'Tgl Lahir: ${DateFormat('dd/MM/yyyy').format(birthDate)}',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: gender,
+                        decoration: const InputDecoration(
+                          labelText: 'Jenis Kelamin',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Laki-laki',
+                            child: Text('Laki-laki'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Perempuan',
+                            child: Text('Perempuan'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setInnerState(() => gender = value);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: addressController,
+                        maxLines: 2,
+                        decoration: const InputDecoration(labelText: 'Alamat'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: phoneController,
+                        decoration: const InputDecoration(labelText: 'No HP'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: emailController,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: jobTitleController,
+                        decoration: const InputDecoration(labelText: 'Jabatan'),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<AdminRole>(
+                        value: role,
+                        decoration: const InputDecoration(labelText: 'Role'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: AdminRole.admin,
+                            child: Text('Admin'),
+                          ),
+                          DropdownMenuItem(
+                            value: AdminRole.staff,
+                            child: Text('Staff'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setInnerState(() => role = value);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: departmentController,
+                        decoration: const InputDecoration(
+                          labelText: 'Departemen',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: employeeStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Status Karyawan',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Tetap',
+                            child: Text('Tetap'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Kontrak',
+                            child: Text('Kontrak'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Magang',
+                            child: Text('Magang'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setInnerState(() => employeeStatus = value);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: () async {
+                          await pickDate(
+                            initialDate: joinDate,
+                            onPicked: (value) {
+                              setInnerState(() => joinDate = value);
+                            },
+                          );
+                        },
+                        child: Text(
+                          'Tanggal Masuk: ${DateFormat('dd/MM/yyyy').format(joinDate)}',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: bankAccountController,
+                        decoration: const InputDecoration(
+                          labelText: 'No Rekening',
+                        ),
                       ),
                     ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setInnerState(() => role = value);
-                    },
-                    decoration: const InputDecoration(labelText: 'Role'),
                   ),
-                ],
+                ),
               );
             },
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Batal'),
             ),
             FilledButton(
               onPressed: () {
-                if (nameController.text.trim().isEmpty ||
-                    nikController.text.trim().isEmpty) {
+                final fullName = fullNameController.text.trim();
+                final nik = nikController.text.trim();
+                final placeOfBirth = placeOfBirthController.text.trim();
+                final address = addressController.text.trim();
+                final phone = phoneController.text.trim();
+                final email = emailController.text.trim();
+                final jobTitle = jobTitleController.text.trim();
+                final department = departmentController.text.trim();
+                final bankAccount = bankAccountController.text.trim();
+
+                if (fullName.isEmpty ||
+                    nik.isEmpty ||
+                    placeOfBirth.isEmpty ||
+                    address.isEmpty ||
+                    phone.isEmpty ||
+                    email.isEmpty ||
+                    jobTitle.isEmpty ||
+                    department.isEmpty ||
+                    bankAccount.isEmpty) {
                   return;
                 }
+
                 setState(() {
-                  employee.name = nameController.text.trim();
-                  employee.nik = nikController.text.trim();
-                  employee.role = role;
+                  if (isEdit) {
+                    employee.fullName = fullName;
+                    employee.nik = nik;
+                    employee.placeOfBirth = placeOfBirth;
+                    employee.birthDate = birthDate;
+                    employee.gender = gender;
+                    employee.address = address;
+                    employee.phoneNumber = phone;
+                    employee.email = email;
+                    employee.jobTitle = jobTitle;
+                    employee.role = role;
+                    employee.department = department;
+                    employee.employeeStatus = employeeStatus;
+                    employee.joinDate = joinDate;
+                    employee.bankAccountNumber = bankAccount;
+                    employee.profilePhotoPath = profilePhotoPath;
+                  } else {
+                    _employees.insert(
+                      0,
+                      _EmployeeData(
+                        id: 'EMP-${DateTime.now().millisecondsSinceEpoch}',
+                        fullName: fullName,
+                        nik: nik,
+                        placeOfBirth: placeOfBirth,
+                        birthDate: birthDate,
+                        gender: gender,
+                        address: address,
+                        phoneNumber: phone,
+                        email: email,
+                        jobTitle: jobTitle,
+                        role: role,
+                        department: department,
+                        employeeStatus: employeeStatus,
+                        joinDate: joinDate,
+                        bankAccountNumber: bankAccount,
+                        profilePhotoPath: profilePhotoPath,
+                      ),
+                    );
+                  }
                 });
-                _addLog('Edit data karyawan', employee.name);
-                Navigator.pop(context);
+                _addLog(
+                  isEdit ? 'Edit data karyawan' : 'Tambah karyawan',
+                  fullName,
+                );
+                Navigator.pop(dialogContext);
               },
-              child: const Text('Update'),
+              child: Text(isEdit ? 'Update' : 'Simpan'),
             ),
           ],
         );
@@ -587,26 +845,26 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
           onEdit: _showEditEmployeeDialog,
           onChangeRole: (employee, role) {
             setState(() => employee.role = role);
-            _addLog('Ubah role', '${employee.name} -> ${_labelRole(role)}');
+            _addLog('Ubah role', '${employee.fullName} -> ${_labelRole(role)}');
           },
           onToggleActive: (employee, value) {
             setState(() => employee.isActive = value);
             _addLog(
               value ? 'Aktifkan karyawan' : 'Nonaktifkan karyawan',
-              employee.name,
+              employee.fullName,
             );
           },
           onResetPassword: (employee) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Password ${employee.name} direset (mock).'),
+                content: Text('Password ${employee.fullName} direset (mock).'),
               ),
             );
-            _addLog('Reset password', employee.name);
+            _addLog('Reset password', employee.fullName);
           },
           onDelete: (employee) {
             setState(() => _employees.remove(employee));
-            _addLog('Hapus data karyawan', employee.name);
+            _addLog('Hapus data karyawan', employee.fullName);
           },
         ),
         const SizedBox(height: 12),
@@ -1053,15 +1311,46 @@ class _EmployeeManagementCard extends StatelessWidget {
                   child: Column(
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundImage:
+                                employee.profilePhotoPath != null &&
+                                    File(
+                                      employee.profilePhotoPath!,
+                                    ).existsSync()
+                                ? FileImage(File(employee.profilePhotoPath!))
+                                : const AssetImage('assets/icons/app_icon.jpg')
+                                      as ImageProvider<Object>,
+                          ),
+                          const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              '${employee.name} (${employee.nik})',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  employee.fullName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  'NIK: ${employee.nik}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                Text(
+                                  '${employee.jobTitle} | ${employee.department}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                Text(
+                                  'Status: ${employee.employeeStatus}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
                             ),
                           ),
+                          const SizedBox(width: 8),
                           PopupMenuButton<String>(
                             onSelected: (value) {
                               if (value == 'edit') {

@@ -25,23 +25,41 @@ class PasswordChangeResult {
 class AppUser {
   final String id;
   final String fullName;
+  final String nik;
+  final String placeOfBirth;
+  final DateTime birthDate;
+  final String gender;
+  final String address;
+  final String phoneNumber;
   final String email;
   final String username;
-  final String nik;
+  final String jobTitle;
   final String role;
   final String department;
-  final String phoneNumber;
+  final String employeeStatus;
+  final DateTime joinDate;
+  final String bankAccountNumber;
+  final String? profilePhotoPath;
   final bool isActive;
 
   const AppUser({
     required this.id,
     required this.fullName,
+    required this.nik,
+    required this.placeOfBirth,
+    required this.birthDate,
+    required this.gender,
+    required this.address,
+    required this.phoneNumber,
     required this.email,
     required this.username,
-    required this.nik,
+    required this.jobTitle,
     required this.role,
     required this.department,
-    required this.phoneNumber,
+    required this.employeeStatus,
+    required this.joinDate,
+    required this.bankAccountNumber,
+    this.profilePhotoPath,
     required this.isActive,
   });
 }
@@ -56,29 +74,45 @@ class _AuthCredential {
 class AuthService {
   final List<_AuthCredential> _credentials = <_AuthCredential>[
     _AuthCredential(
-      user: const AppUser(
+      user: AppUser(
         id: 'USR-001',
         fullName: 'Dinda Maharani',
+        nik: '327600000002',
+        placeOfBirth: 'Bandung',
+        birthDate: DateTime(1994, 6, 12),
+        gender: 'Perempuan',
+        address: 'Jl. Setiabudi No. 18, Bandung',
+        phoneNumber: '0812-3456-7890',
         email: 'dinda@kingroyal.com',
         username: 'dinda',
-        nik: '327600000002',
-        role: 'Supervisor HR',
+        jobTitle: 'Supervisor HR',
+        role: 'Admin',
         department: 'Human Capital',
-        phoneNumber: '0812-3456-7890',
+        employeeStatus: 'Tetap',
+        joinDate: DateTime(2024, 1, 12),
+        bankAccountNumber: '1234567890',
         isActive: true,
       ),
       password: 'Password@123',
     ),
     _AuthCredential(
-      user: const AppUser(
+      user: AppUser(
         id: 'USR-002',
         fullName: 'Reno Pratama',
+        nik: '327600000003',
+        placeOfBirth: 'Jakarta',
+        birthDate: DateTime(1998, 9, 3),
+        gender: 'Laki-laki',
+        address: 'Jl. Cempaka Putih No. 22, Jakarta',
+        phoneNumber: '0812-0000-1111',
         email: 'reno@kingroyal.com',
         username: 'reno',
-        nik: '327600000003',
-        role: 'Staff Operasional',
+        jobTitle: 'Staff Operasional',
+        role: 'Staff',
         department: 'Front Office',
-        phoneNumber: '0812-0000-1111',
+        employeeStatus: 'Kontrak',
+        joinDate: DateTime(2025, 3, 1),
+        bankAccountNumber: '0987654321',
         isActive: false,
       ),
       password: 'Password@123',

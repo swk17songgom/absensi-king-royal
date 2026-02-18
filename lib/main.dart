@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:absensi_king_royal/absen_masuk_page.dart';
 import 'package:absensi_king_royal/absen_pulang_page.dart';
@@ -102,11 +103,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late final String employeeName;
   late final String employeeNik;
+  late final String employeePlaceOfBirth;
+  late final DateTime employeeBirthDate;
+  late final String employeeGender;
+  late final String employeeAddress;
+  late final String employeeJobTitle;
   late final String employeeRole;
   late final String employeeDepartment;
+  late final String employeeStatus;
+  late final DateTime employeeJoinDate;
+  late final String employeeBankAccountNumber;
   late final String employeePhone;
   late final String employeeEmail;
-  final String joinedDate = '12 Januari 2024';
+  String? employeeProfilePhotoPath;
 
   int totalHadir = 22;
   int totalCuti = 1;
@@ -137,10 +146,19 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     employeeName = widget.currentUser.fullName;
     employeeNik = widget.currentUser.nik;
+    employeePlaceOfBirth = widget.currentUser.placeOfBirth;
+    employeeBirthDate = widget.currentUser.birthDate;
+    employeeGender = widget.currentUser.gender;
+    employeeAddress = widget.currentUser.address;
+    employeeJobTitle = widget.currentUser.jobTitle;
     employeeRole = widget.currentUser.role;
     employeeDepartment = widget.currentUser.department;
+    employeeStatus = widget.currentUser.employeeStatus;
+    employeeJoinDate = widget.currentUser.joinDate;
+    employeeBankAccountNumber = widget.currentUser.bankAccountNumber;
     employeePhone = widget.currentUser.phoneNumber;
     employeeEmail = widget.currentUser.email;
+    employeeProfilePhotoPath = widget.currentUser.profilePhotoPath;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _now = DateTime.now());
@@ -212,11 +230,22 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => EmployeeProfilePage(
           fullName: employeeName,
           nik: employeeNik,
-          jobTitle: employeeRole,
-          department: employeeDepartment,
+          placeOfBirth: employeePlaceOfBirth,
+          birthDate: employeeBirthDate,
+          gender: employeeGender,
+          address: employeeAddress,
           phoneNumber: employeePhone,
           email: employeeEmail,
-          joinedDate: joinedDate,
+          jobTitle: employeeJobTitle,
+          role: employeeRole,
+          department: employeeDepartment,
+          employeeStatus: employeeStatus,
+          joinDate: employeeJoinDate,
+          bankAccountNumber: employeeBankAccountNumber,
+          profilePhotoPath: employeeProfilePhotoPath,
+          onProfilePhotoChanged: (path) {
+            setState(() => employeeProfilePhotoPath = path);
+          },
           totalHadir: totalHadir,
           totalCuti: totalCuti,
           totalExtraOff: totalExtraOff,
@@ -296,8 +325,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     _HeaderCard(
                       employeeName: employeeName,
                       employeeNik: employeeNik,
+                      employeeJobTitle: employeeJobTitle,
                       employeeRole: employeeRole,
                       employeeDepartment: employeeDepartment,
+                      profilePhotoPath: employeeProfilePhotoPath,
                       onTap: _openProfilePage,
                     ),
                     const SizedBox(height: 12),
@@ -354,21 +385,30 @@ class _HomeScreenState extends State<HomeScreen> {
 class _HeaderCard extends StatelessWidget {
   final String employeeName;
   final String employeeNik;
+  final String employeeJobTitle;
   final String employeeRole;
   final String employeeDepartment;
+  final String? profilePhotoPath;
   final VoidCallback onTap;
 
   const _HeaderCard({
     required this.employeeName,
     required this.employeeNik,
+    required this.employeeJobTitle,
     required this.employeeRole,
     required this.employeeDepartment,
+    required this.profilePhotoPath,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final hasCustomPhoto =
+        profilePhotoPath != null && File(profilePhotoPath!).existsSync();
+    final ImageProvider<Object> profileImage = hasCustomPhoto
+        ? FileImage(File(profilePhotoPath!))
+        : const AssetImage('assets/icons/app_icon.jpg');
     return Card(
       elevation: 1.5,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -382,7 +422,7 @@ class _HeaderCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 36,
-                backgroundImage: const AssetImage('assets/icons/app_icon.jpg'),
+                backgroundImage: profileImage,
                 backgroundColor: cs.primaryContainer,
               ),
               const SizedBox(height: 10),
@@ -411,7 +451,12 @@ class _HeaderCard extends StatelessWidget {
                 style: TextStyle(color: cs.onSurfaceVariant),
               ),
               Text(
-                employeeRole,
+                employeeJobTitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              Text(
+                'Role: $employeeRole',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: cs.onSurfaceVariant),
               ),
