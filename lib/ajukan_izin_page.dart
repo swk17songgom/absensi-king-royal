@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-enum LeaveRequestType { sakit, cuti, extraOff, off, lembur }
+enum LeaveRequestType { sakit, cuti, extraOff, lembur }
 
 extension LeaveRequestTypeX on LeaveRequestType {
   String get label {
@@ -14,8 +14,6 @@ extension LeaveRequestTypeX on LeaveRequestType {
         return 'Cuti';
       case LeaveRequestType.extraOff:
         return 'Extra Off';
-      case LeaveRequestType.off:
-        return 'Off';
       case LeaveRequestType.lembur:
         return 'Lembur';
     }
@@ -26,11 +24,13 @@ class LeaveSubmissionPayload {
   final LeaveHistoryItem historyItem;
   final LeaveRequestType type;
   final bool includesToday;
+  final int requestedDays;
 
   const LeaveSubmissionPayload({
     required this.historyItem,
     required this.type,
     required this.includesToday,
+    required this.requestedDays,
   });
 }
 
@@ -125,13 +125,10 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
     return _selectedRange != null;
   }
 
-  bool get _requiresReason => _selectedType != LeaveRequestType.off;
+  bool get _requiresReason => true;
 
   String _buildTitle() {
     final reason = _reasonController.text.trim();
-    if (_selectedType == LeaveRequestType.off) {
-      return 'Off';
-    }
     if (_selectedType == LeaveRequestType.lembur) {
       if (reason.isEmpty) {
         return 'Lembur $_selectedOvertimeHours jam';
@@ -182,6 +179,23 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
     return !today.isBefore(start) && !today.isAfter(end);
   }
 
+  int _requestedDays() {
+    if (_selectedType == LeaveRequestType.lembur || _selectedRange == null) {
+      return 0;
+    }
+    final start = DateTime(
+      _selectedRange!.start.year,
+      _selectedRange!.start.month,
+      _selectedRange!.start.day,
+    );
+    final end = DateTime(
+      _selectedRange!.end.year,
+      _selectedRange!.end.month,
+      _selectedRange!.end.day,
+    );
+    return end.difference(start).inDays + 1;
+  }
+
   Future<void> _submit() async {
     final isValidForm =
         !_requiresReason || (_formKey.currentState?.validate() ?? false);
@@ -208,6 +222,7 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
         historyItem: item,
         type: _selectedType,
         includesToday: _includesToday(),
+        requestedDays: _requestedDays(),
       ),
     );
   }
@@ -216,7 +231,6 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isOvertime = _selectedType == LeaveRequestType.lembur;
-    final isOff = _selectedType == LeaveRequestType.off;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ajukan Izin')),
@@ -276,9 +290,6 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
                               _selectedType = value;
                               _selectedRange = null;
                               _selectedDate = null;
-                              if (_selectedType == LeaveRequestType.off) {
-                                _reasonController.clear();
-                              }
                             });
                           },
                         ),
@@ -321,42 +332,36 @@ class _AjukanIzinPageState extends State<AjukanIzinPage> {
                             icon: const Icon(Icons.calendar_month_rounded),
                             label: Text(
                               _selectedRange == null
-                                  ? (isOff
-                                        ? 'Pilih Tanggal Off'
-                                        : 'Pilih Tanggal Izin')
+                                  ? 'Pilih Tanggal Izin'
                                   : '${DateFormat('dd MMM yyyy', 'id_ID').format(_selectedRange!.start)} - ${DateFormat('dd MMM yyyy', 'id_ID').format(_selectedRange!.end)}',
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            isOff
-                                ? 'Pengajuan Off tetap menunggu approval HR.'
-                                : 'Bisa pilih 1 hari atau lebih.',
+                            'Bisa pilih 1 hari atau lebih.',
                             style: TextStyle(
                               color: cs.onSurfaceVariant,
                               fontSize: 12,
                             ),
                           ),
                         ],
-                        if (!isOff) ...[
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _reasonController,
-                            minLines: 3,
-                            maxLines: 5,
-                            decoration: const InputDecoration(
-                              labelText: 'Alasan',
-                              alignLabelWithHint: true,
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Alasan wajib diisi.';
-                              }
-                              return null;
-                            },
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _reasonController,
+                          minLines: 3,
+                          maxLines: 5,
+                          decoration: const InputDecoration(
+                            labelText: 'Alasan',
+                            alignLabelWithHint: true,
+                            border: OutlineInputBorder(),
                           ),
-                        ],
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Alasan wajib diisi.';
+                            }
+                            return null;
+                          },
+                        ),
                         const SizedBox(height: 12),
                         Row(
                           children: [

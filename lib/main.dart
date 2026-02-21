@@ -8,6 +8,7 @@ import 'package:absensi_king_royal/attendance_capture_page.dart';
 import 'package:absensi_king_royal/admin_dashboard_section.dart';
 import 'package:absensi_king_royal/auth_service.dart';
 import 'package:absensi_king_royal/login_page.dart';
+import 'package:absensi_king_royal/payroll_models.dart';
 import 'package:absensi_king_royal/riwayat_page.dart';
 import 'package:absensi_king_royal/reset_password_page.dart';
 import 'package:flutter/material.dart';
@@ -122,14 +123,12 @@ class _HomeScreenState extends State<HomeScreen> {
   int totalCuti = 1;
   int totalExtraOff = 2;
   int totalSakit = 0;
-  int totalTidakHadir = 1;
   int totalLembur = 7;
+  static const int annualLeaveQuota = 12;
 
   AttendanceSessionState attendanceState = AttendanceSessionState.notCheckedIn;
-  bool hasPendingOffToday = false;
   DateTime? checkInAt;
   DateTime? checkOutAt;
-  LeaveSubmissionStatus leaveSubmissionStatus = LeaveSubmissionStatus.none;
   final List<LeaveHistoryItem> leaveHistory = [
     const LeaveHistoryItem(
       title: 'Izin Keperluan Keluarga',
@@ -142,6 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
       status: LeaveHistoryStatus.rejected,
     ),
   ];
+  final List<SentPayrollSlip> _sentPayrollSlips = [];
 
   @override
   void initState() {
@@ -188,7 +188,6 @@ class _HomeScreenState extends State<HomeScreen> {
       checkInAt = result.capturedAt;
       checkOutAt = null;
       attendanceState = AttendanceSessionState.checkedIn;
-      hasPendingOffToday = false;
     });
   }
 
@@ -223,14 +222,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result == null || !mounted) return;
     setState(() {
-      leaveSubmissionStatus = LeaveSubmissionStatus.pending;
+      final requestedDays = result.requestedDays <= 0
+          ? 1
+          : result.requestedDays;
       leaveHistory.insert(0, result.historyItem);
-      if (result.type == LeaveRequestType.sakit) totalSakit += 1;
-      if (result.type == LeaveRequestType.cuti) totalCuti += 1;
-      if (result.type == LeaveRequestType.extraOff) totalExtraOff += 1;
-      if (result.type == LeaveRequestType.off) {
-        totalOff += 1;
-        hasPendingOffToday = result.includesToday;
+      if (result.type == LeaveRequestType.sakit) totalSakit += requestedDays;
+      if (result.type == LeaveRequestType.cuti) totalCuti += requestedDays;
+      if (result.type == LeaveRequestType.extraOff) {
+        totalExtraOff += requestedDays;
       }
       if (result.type == LeaveRequestType.lembur) totalLembur += 1;
     });
@@ -259,12 +258,20 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() => employeeProfilePhotoPath = path);
           },
           totalHadir: totalHadir,
+          totalOff: totalOff,
           totalCuti: totalCuti,
           totalExtraOff: totalExtraOff,
           totalSakit: totalSakit,
-          totalTidakHadir: totalTidakHadir,
           totalLembur: totalLembur,
+          annualLeaveQuota: annualLeaveQuota,
+          remainingLeave: (annualLeaveQuota - totalCuti).clamp(
+            0,
+            annualLeaveQuota,
+          ),
           leaveHistory: leaveHistory,
+          salarySlips: _sentPayrollSlips
+              .where((slip) => slip.employeeName == employeeName)
+              .toList(),
           onResetPassword: _openResetPasswordPage,
           onLogout: () {
             Navigator.of(context).pop();
@@ -351,17 +358,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       totalExtraOff: totalExtraOff,
                       totalSakit: totalSakit,
                       totalLembur: totalLembur,
-                      leaveSubmissionStatus: leaveSubmissionStatus,
-                      attendanceStatus: hasPendingOffToday
-                          ? 'Pengajuan Off (Menunggu Approval HR)'
-                          : switch (attendanceState) {
-                              AttendanceSessionState.notCheckedIn =>
-                                'Belum Absen',
-                              AttendanceSessionState.checkedIn =>
-                                'Sudah Absen Masuk',
-                              AttendanceSessionState.checkedOut =>
-                                'Sudah Absen Pulang',
-                            },
+                      leaveHistory: leaveHistory,
+                      attendanceStatus: switch (attendanceState) {
+                        AttendanceSessionState.notCheckedIn => 'Belum Absen',
+                        AttendanceSessionState.checkedIn => 'Sudah Absen Masuk',
+                        AttendanceSessionState.checkedOut =>
+                          'Sudah Absen Pulang',
+                      },
                     ),
                     const SizedBox(height: 12),
                     _MainMenuCard(
@@ -376,12 +379,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       onAjukanIzin: () {
                         _openAjukanIzinPage();
                       },
-                      onAjukanOff: () {
-                        _openAjukanIzinPage(initialType: LeaveRequestType.off);
-                      },
                       onRiwayat: _openRiwayatPage,
                     ),
-                    AdminDashboardSection(currentUserName: employeeName),
+                    if (employeeRole.toLowerCase() == 'admin')
+                      AdminDashboardSection(
+                        currentUserName: employeeName,
+                        onSlipSent: (slip) {
+                          setState(() {
+                            _sentPayrollSlips.removeWhere(
+                              (item) =>
+                                  item.employeeId == slip.employeeId &&
+                                  item.month == slip.month &&
+                                  item.year == slip.year,
+                            );
+                            _sentPayrollSlips.insert(0, slip);
+                          });
+                        },
+                      ),
                     const SizedBox(height: 20),
                     Center(
                       child: Text(
@@ -509,7 +523,7 @@ class _InfoBulanIniCard extends StatelessWidget {
   final int totalExtraOff;
   final int totalSakit;
   final int totalLembur;
-  final LeaveSubmissionStatus leaveSubmissionStatus;
+  final List<LeaveHistoryItem> leaveHistory;
   final String attendanceStatus;
 
   const _InfoBulanIniCard({
@@ -519,7 +533,7 @@ class _InfoBulanIniCard extends StatelessWidget {
     required this.totalExtraOff,
     required this.totalSakit,
     required this.totalLembur,
-    required this.leaveSubmissionStatus,
+    required this.leaveHistory,
     required this.attendanceStatus,
   });
 
@@ -583,10 +597,37 @@ class _InfoBulanIniCard extends StatelessWidget {
                     style: TextStyle(color: cs.onSurfaceVariant),
                   ),
                 ),
-                const SizedBox(width: 8),
-                _LeaveStatusBadge(status: leaveSubmissionStatus),
               ],
             ),
+            const SizedBox(height: 8),
+            if (leaveHistory.isEmpty)
+              const _LeaveStatusBadge(status: LeaveSubmissionStatus.none)
+            else
+              ...leaveHistory.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          style: TextStyle(color: cs.onSurfaceVariant),
+                        ),
+                      ),
+                      _LeaveStatusBadge(
+                        status: switch (item.status) {
+                          LeaveHistoryStatus.approved =>
+                            LeaveSubmissionStatus.approved,
+                          LeaveHistoryStatus.pending =>
+                            LeaveSubmissionStatus.pending,
+                          LeaveHistoryStatus.rejected =>
+                            LeaveSubmissionStatus.rejected,
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -665,7 +706,6 @@ class _MainMenuCard extends StatelessWidget {
   final VoidCallback onAbsenMasuk;
   final VoidCallback onAbsenPulang;
   final VoidCallback onAjukanIzin;
-  final VoidCallback onAjukanOff;
   final VoidCallback onRiwayat;
 
   const _MainMenuCard({
@@ -678,7 +718,6 @@ class _MainMenuCard extends StatelessWidget {
     required this.onAbsenMasuk,
     required this.onAbsenPulang,
     required this.onAjukanIzin,
-    required this.onAjukanOff,
     required this.onRiwayat,
   });
 
@@ -705,12 +744,6 @@ class _MainMenuCard extends StatelessWidget {
         icon: Icons.note_add_rounded,
         color: const Color(0xFF2A8F64),
         onTap: onAjukanIzin,
-      ),
-      _MainMenuItem(
-        title: 'Off',
-        icon: Icons.event_busy_rounded,
-        color: const Color(0xFF5E6B73),
-        onTap: onAjukanOff,
       ),
       _MainMenuItem(
         title: 'Riwayat',

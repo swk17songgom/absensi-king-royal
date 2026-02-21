@@ -1,12 +1,13 @@
 import 'dart:io';
 
+import 'package:absensi_king_royal/payroll_models.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 enum AdminRole { admin, staff }
 
-enum ApprovalType { izin, cuti, off, lembur }
+enum ApprovalType { izin, cuti, extraOff, sakit, lembur }
 
 enum ApprovalStatus { pending, approved, rejected }
 
@@ -14,16 +15,16 @@ class _MonthlyRecap {
   final String employeeName;
   final int month;
   final int year;
-  final int totalHadir;
-  final int totalOff;
-  final int totalTidakHadir;
-  final int totalCuti;
-  final int totalExtraOff;
-  final int totalSakit;
-  final int totalAlfa;
-  final int totalLembur;
+  int totalHadir;
+  int totalOff;
+  int totalTidakHadir;
+  int totalCuti;
+  int totalExtraOff;
+  int totalSakit;
+  int totalAlfa;
+  int totalLembur;
 
-  const _MonthlyRecap({
+  _MonthlyRecap({
     required this.employeeName,
     required this.month,
     required this.year,
@@ -64,12 +65,15 @@ class _SalarySlip {
   final int month;
   final int year;
   int gajiPokok;
-  int tunjanganHadir;
-  int upahLembur;
-  int insentifOff;
-  int insentifExtraOff;
-  int potonganAlfa;
-  int potonganTidakHadir;
+  int tunjanganJabatan;
+  int lembur;
+  int tunjanganLain;
+  int potonganPinjaman;
+  int potonganAbsen;
+  int potonganBpjsKesehatan;
+  int potonganBpjsTkJht;
+  int potonganBpjsTkJp;
+  int potonganPph21;
   String notes;
   final DateTime generatedAt;
   DateTime? sentAt;
@@ -81,24 +85,30 @@ class _SalarySlip {
     required this.month,
     required this.year,
     required this.gajiPokok,
-    required this.tunjanganHadir,
-    required this.upahLembur,
-    required this.insentifOff,
-    required this.insentifExtraOff,
-    required this.potonganAlfa,
-    required this.potonganTidakHadir,
+    required this.tunjanganJabatan,
+    required this.lembur,
+    required this.tunjanganLain,
+    required this.potonganPinjaman,
+    required this.potonganAbsen,
+    required this.potonganBpjsKesehatan,
+    required this.potonganBpjsTkJht,
+    required this.potonganBpjsTkJp,
+    required this.potonganPph21,
     required this.notes,
     required this.generatedAt,
   });
 
   int get totalGaji =>
       gajiPokok +
-      tunjanganHadir +
-      upahLembur +
-      insentifOff +
-      insentifExtraOff -
-      potonganAlfa -
-      potonganTidakHadir;
+      tunjanganJabatan +
+      lembur +
+      tunjanganLain -
+      potonganPinjaman -
+      potonganAbsen -
+      potonganBpjsKesehatan -
+      potonganBpjsTkJht -
+      potonganBpjsTkJp -
+      potonganPph21;
 }
 
 class _EmployeeData {
@@ -117,6 +127,7 @@ class _EmployeeData {
   String employeeStatus;
   DateTime joinDate;
   String bankAccountNumber;
+  int gajiPokok;
   String? profilePhotoPath;
   bool isActive = true;
 
@@ -136,6 +147,7 @@ class _EmployeeData {
     required this.employeeStatus,
     required this.joinDate,
     required this.bankAccountNumber,
+    required this.gajiPokok,
     this.profilePhotoPath,
   });
 }
@@ -156,14 +168,20 @@ class _ActivityLog {
 
 class AdminDashboardSection extends StatefulWidget {
   final String currentUserName;
+  final ValueChanged<SentPayrollSlip>? onSlipSent;
 
-  const AdminDashboardSection({super.key, required this.currentUserName});
+  const AdminDashboardSection({
+    super.key,
+    required this.currentUserName,
+    this.onSlipSent,
+  });
 
   @override
   State<AdminDashboardSection> createState() => _AdminDashboardSectionState();
 }
 
 class _AdminDashboardSectionState extends State<AdminDashboardSection> {
+  static const int _annualLeaveQuota = 12;
   late int _selectedMonth;
   late int _selectedYear;
   String _nameFilter = '';
@@ -269,16 +287,24 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
       _ApprovalRequest(
         id: 'REQ-003',
         employeeName: 'Reno Pratama',
-        type: ApprovalType.lembur,
-        reason: 'Persiapan event ballroom',
+        type: ApprovalType.extraOff,
+        reason: 'Kebutuhan keluarga',
         date: now.subtract(const Duration(days: 2)),
-        attachment: 'foto_kegiatan.jpg',
+        attachment: 'surat_pengantar.jpg',
       ),
       _ApprovalRequest(
         id: 'REQ-004',
         employeeName: 'Ari Saputra',
-        type: ApprovalType.off,
-        reason: null,
+        type: ApprovalType.sakit,
+        reason: 'Demam tinggi',
+        date: now,
+        attachment: 'surat_dokter.pdf',
+      ),
+      _ApprovalRequest(
+        id: 'REQ-005',
+        employeeName: 'Dinda Maharani',
+        type: ApprovalType.lembur,
+        reason: 'Closing laporan bulanan',
         date: now,
         attachment: null,
       ),
@@ -301,6 +327,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         employeeStatus: 'Tetap',
         joinDate: DateTime(2023, 10, 15),
         bankAccountNumber: '201001223344',
+        gajiPokok: 4200000,
       ),
       _EmployeeData(
         id: 'EMP-002',
@@ -318,6 +345,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         employeeStatus: 'Tetap',
         joinDate: DateTime(2024, 1, 12),
         bankAccountNumber: '201001334455',
+        gajiPokok: 6500000,
       ),
       _EmployeeData(
         id: 'EMP-003',
@@ -335,6 +363,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         employeeStatus: 'Kontrak',
         joinDate: DateTime(2025, 3, 1),
         bankAccountNumber: '201001556677',
+        gajiPokok: 4300000,
       ),
     ];
   }
@@ -350,24 +379,6 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         .toList();
   }
 
-  int _sum(int Function(_MonthlyRecap item) selector) {
-    return _currentRecapData.fold<int>(0, (p, e) => p + selector(e));
-  }
-
-  double get _attendanceRate {
-    final hadir = _sum((e) => e.totalHadir);
-    final totalHari =
-        hadir +
-        _sum((e) => e.totalOff) +
-        _sum((e) => e.totalTidakHadir) +
-        _sum((e) => e.totalCuti) +
-        _sum((e) => e.totalExtraOff) +
-        _sum((e) => e.totalSakit) +
-        _sum((e) => e.totalAlfa);
-    if (totalHari == 0) return 0;
-    return (hadir / totalHari) * 100;
-  }
-
   int get _totalPending {
     return _approvalRequests
         .where((e) => e.status == ApprovalStatus.pending)
@@ -380,11 +391,19 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     return (_employees.length * 0.82).round();
   }
 
-  int get _jumlahTidakHadirHariIni {
-    return (_employees.length - _jumlahHadirHariIni).clamp(
-      0,
-      _employees.length,
-    );
+  int get _jumlahOffHariIni {
+    return (_employees.length * 0.16).round();
+  }
+
+  int _remainingLeaveForEmployee(String employeeName, {int? year}) {
+    final activeYear = year ?? _selectedYear;
+    final used = _recapData
+        .where(
+          (item) =>
+              item.employeeName == employeeName && item.year == activeYear,
+        )
+        .fold<int>(0, (sum, item) => sum + item.totalCuti);
+    return (_annualLeaveQuota - used).clamp(0, _annualLeaveQuota);
   }
 
   void _addLog(String action, String target) {
@@ -430,13 +449,13 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
   }
 
   _SalarySlip _createSalarySlip(_EmployeeData employee, _MonthlyRecap? recap) {
-    final gajiPokok = employee.role == AdminRole.admin ? 6500000 : 4200000;
-    final totalHadir = recap?.totalHadir ?? 0;
+    final gajiPokok = employee.gajiPokok;
     final totalLembur = recap?.totalLembur ?? 0;
-    final totalOff = recap?.totalOff ?? 0;
-    final totalExtraOff = recap?.totalExtraOff ?? 0;
-    final totalAlfa = recap?.totalAlfa ?? 0;
-    final totalTidakHadir = recap?.totalTidakHadir ?? 0;
+    final totalAbsenBermasalah =
+        (recap?.totalAlfa ?? 0) + (recap?.totalTidakHadir ?? 0);
+    final tunjanganJabatan = employee.role == AdminRole.admin
+        ? 1200000
+        : 500000;
 
     return _SalarySlip(
       id: 'SLIP-${DateTime.now().millisecondsSinceEpoch}-${employee.id}',
@@ -445,13 +464,16 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
       month: _selectedMonth,
       year: _selectedYear,
       gajiPokok: gajiPokok,
-      tunjanganHadir: totalHadir * 35000,
-      upahLembur: totalLembur * 25000,
-      insentifOff: totalOff * 15000,
-      insentifExtraOff: totalExtraOff * 25000,
-      potonganAlfa: totalAlfa * 100000,
-      potonganTidakHadir: totalTidakHadir * 50000,
-      notes: 'Dihitung otomatis dari rekap absensi periode berjalan.',
+      tunjanganJabatan: tunjanganJabatan,
+      lembur: totalLembur * 25000,
+      tunjanganLain: 300000,
+      potonganPinjaman: 0,
+      potonganAbsen: totalAbsenBermasalah * 75000,
+      potonganBpjsKesehatan: 120000,
+      potonganBpjsTkJht: 95000,
+      potonganBpjsTkJp: 65000,
+      potonganPph21: 125000,
+      notes: 'Slip gaji dihitung dan dikirim dalam format PDF.',
       generatedAt: DateTime.now(),
     );
   }
@@ -517,23 +539,30 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     final gajiPokokController = TextEditingController(
       text: '${slip.gajiPokok}',
     );
-    final tunjanganHadirController = TextEditingController(
-      text: '${slip.tunjanganHadir}',
+    final tunjanganJabatanController = TextEditingController(
+      text: '${slip.tunjanganJabatan}',
     );
-    final upahLemburController = TextEditingController(
-      text: '${slip.upahLembur}',
+    final lemburController = TextEditingController(text: '${slip.lembur}');
+    final tunjanganLainController = TextEditingController(
+      text: '${slip.tunjanganLain}',
     );
-    final insentifOffController = TextEditingController(
-      text: '${slip.insentifOff}',
+    final potonganPinjamanController = TextEditingController(
+      text: '${slip.potonganPinjaman}',
     );
-    final insentifExtraOffController = TextEditingController(
-      text: '${slip.insentifExtraOff}',
+    final potonganAbsenController = TextEditingController(
+      text: '${slip.potonganAbsen}',
     );
-    final potonganAlfaController = TextEditingController(
-      text: '${slip.potonganAlfa}',
+    final bpjsKesehatanController = TextEditingController(
+      text: '${slip.potonganBpjsKesehatan}',
     );
-    final potonganTidakHadirController = TextEditingController(
-      text: '${slip.potonganTidakHadir}',
+    final bpjsTkJhtController = TextEditingController(
+      text: '${slip.potonganBpjsTkJht}',
+    );
+    final bpjsTkJpController = TextEditingController(
+      text: '${slip.potonganBpjsTkJp}',
+    );
+    final pph21Controller = TextEditingController(
+      text: '${slip.potonganPph21}',
     );
     final notesController = TextEditingController(text: slip.notes);
 
@@ -555,48 +584,72 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: tunjanganHadirController,
+                    controller: tunjanganJabatanController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Tunjangan Hadir',
+                      labelText: 'Tunjangan Jabatan',
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: upahLemburController,
+                    controller: lemburController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Upah Lembur'),
+                    decoration: const InputDecoration(labelText: 'Lembur'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: insentifOffController,
+                    controller: tunjanganLainController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Insentif Off',
+                      labelText: 'Tunjangan Lain',
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: insentifExtraOffController,
+                    controller: potonganPinjamanController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Insentif Extra Off',
+                      labelText: 'Potongan Pinjaman',
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: potonganAlfaController,
+                    controller: potonganAbsenController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Potongan Alfa',
+                      labelText: 'Potongan Absen',
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: potonganTidakHadirController,
+                    controller: bpjsKesehatanController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Potongan Tidak Hadir',
+                      labelText: 'Potongan BPJS Kesehatan',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: bpjsTkJhtController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Potongan BPJS TK JHT',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: bpjsTkJpController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Potongan BPJS TK JP',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: pph21Controller,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Potongan Pajak PPh21',
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -622,29 +675,41 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                     gajiPokokController.text,
                     slip.gajiPokok,
                   );
-                  slip.tunjanganHadir = _safeParseInt(
-                    tunjanganHadirController.text,
-                    slip.tunjanganHadir,
+                  slip.tunjanganJabatan = _safeParseInt(
+                    tunjanganJabatanController.text,
+                    slip.tunjanganJabatan,
                   );
-                  slip.upahLembur = _safeParseInt(
-                    upahLemburController.text,
-                    slip.upahLembur,
+                  slip.lembur = _safeParseInt(
+                    lemburController.text,
+                    slip.lembur,
                   );
-                  slip.insentifOff = _safeParseInt(
-                    insentifOffController.text,
-                    slip.insentifOff,
+                  slip.tunjanganLain = _safeParseInt(
+                    tunjanganLainController.text,
+                    slip.tunjanganLain,
                   );
-                  slip.insentifExtraOff = _safeParseInt(
-                    insentifExtraOffController.text,
-                    slip.insentifExtraOff,
+                  slip.potonganPinjaman = _safeParseInt(
+                    potonganPinjamanController.text,
+                    slip.potonganPinjaman,
                   );
-                  slip.potonganAlfa = _safeParseInt(
-                    potonganAlfaController.text,
-                    slip.potonganAlfa,
+                  slip.potonganAbsen = _safeParseInt(
+                    potonganAbsenController.text,
+                    slip.potonganAbsen,
                   );
-                  slip.potonganTidakHadir = _safeParseInt(
-                    potonganTidakHadirController.text,
-                    slip.potonganTidakHadir,
+                  slip.potonganBpjsKesehatan = _safeParseInt(
+                    bpjsKesehatanController.text,
+                    slip.potonganBpjsKesehatan,
+                  );
+                  slip.potonganBpjsTkJht = _safeParseInt(
+                    bpjsTkJhtController.text,
+                    slip.potonganBpjsTkJht,
+                  );
+                  slip.potonganBpjsTkJp = _safeParseInt(
+                    bpjsTkJpController.text,
+                    slip.potonganBpjsTkJp,
+                  );
+                  slip.potonganPph21 = _safeParseInt(
+                    pph21Controller.text,
+                    slip.potonganPph21,
                   );
                   slip.notes = notesController.text.trim();
                 });
@@ -663,14 +728,25 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
   }
 
   void _sendSlip(_SalarySlip slip) {
-    setState(() => slip.sentAt = DateTime.now());
+    final sentAt = DateTime.now();
+    setState(() => slip.sentAt = sentAt);
+    widget.onSlipSent?.call(
+      SentPayrollSlip(
+        employeeId: slip.employeeId,
+        employeeName: slip.employeeName,
+        month: slip.month,
+        year: slip.year,
+        sentAt: sentAt,
+        totalGaji: slip.totalGaji,
+      ),
+    );
     _addLog(
-      'Kirim slip gaji',
+      'Kirim slip gaji PDF',
       '${slip.employeeName} (${slip.month}/${slip.year})',
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Slip gaji ${slip.employeeName} berhasil dikirim.'),
+        content: Text('Slip gaji PDF ${slip.employeeName} berhasil dikirim.'),
       ),
     );
   }
@@ -707,6 +783,9 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     );
     final bankAccountController = TextEditingController(
       text: employee?.bankAccountNumber ?? '',
+    );
+    final gajiPokokController = TextEditingController(
+      text: '${employee?.gajiPokok ?? 0}',
     );
     var role = employee?.role ?? AdminRole.staff;
     var gender = employee?.gender ?? 'Laki-laki';
@@ -937,6 +1016,14 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                           labelText: 'No Rekening',
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: gajiPokokController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Gaji Pokok',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -959,6 +1046,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                 final jobTitle = jobTitleController.text.trim();
                 final department = departmentController.text.trim();
                 final bankAccount = bankAccountController.text.trim();
+                final gajiPokok = _safeParseInt(gajiPokokController.text, 0);
 
                 if (fullName.isEmpty ||
                     nik.isEmpty ||
@@ -988,6 +1076,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                     employee.employeeStatus = employeeStatus;
                     employee.joinDate = joinDate;
                     employee.bankAccountNumber = bankAccount;
+                    employee.gajiPokok = gajiPokok;
                     employee.profilePhotoPath = profilePhotoPath;
                   } else {
                     _employees.insert(
@@ -1008,6 +1097,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                         employeeStatus: employeeStatus,
                         joinDate: joinDate,
                         bankAccountNumber: bankAccount,
+                        gajiPokok: gajiPokok,
                         profilePhotoPath: profilePhotoPath,
                       ),
                     );
@@ -1062,6 +1152,111 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     );
   }
 
+  Future<void> _editRecap(_MonthlyRecap recap) async {
+    final hadirController = TextEditingController(text: '${recap.totalHadir}');
+    final offController = TextEditingController(text: '${recap.totalOff}');
+    final cutiController = TextEditingController(text: '${recap.totalCuti}');
+    final extraOffController = TextEditingController(
+      text: '${recap.totalExtraOff}',
+    );
+    final sakitController = TextEditingController(text: '${recap.totalSakit}');
+    final lemburController = TextEditingController(
+      text: '${recap.totalLembur}',
+    );
+    final tidakHadirController = TextEditingController(
+      text: '${recap.totalTidakHadir}',
+    );
+    final alfaController = TextEditingController(text: '${recap.totalAlfa}');
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Edit Rekap - ${recap.employeeName}'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _numberField(hadirController, 'Total Hadir'),
+                  _numberField(offController, 'Total Off'),
+                  _numberField(cutiController, 'Total Cuti'),
+                  _numberField(extraOffController, 'Total Extra Off'),
+                  _numberField(sakitController, 'Total Sakit'),
+                  _numberField(lemburController, 'Total Lembur (jam)'),
+                  _numberField(tidakHadirController, 'Total Tidak Hadir'),
+                  _numberField(alfaController, 'Total Alfa'),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  recap.totalHadir = _safeParseInt(
+                    hadirController.text,
+                    recap.totalHadir,
+                  );
+                  recap.totalOff = _safeParseInt(
+                    offController.text,
+                    recap.totalOff,
+                  );
+                  recap.totalCuti = _safeParseInt(
+                    cutiController.text,
+                    recap.totalCuti,
+                  );
+                  recap.totalExtraOff = _safeParseInt(
+                    extraOffController.text,
+                    recap.totalExtraOff,
+                  );
+                  recap.totalSakit = _safeParseInt(
+                    sakitController.text,
+                    recap.totalSakit,
+                  );
+                  recap.totalLembur = _safeParseInt(
+                    lemburController.text,
+                    recap.totalLembur,
+                  );
+                  recap.totalTidakHadir = _safeParseInt(
+                    tidakHadirController.text,
+                    recap.totalTidakHadir,
+                  );
+                  recap.totalAlfa = _safeParseInt(
+                    alfaController.text,
+                    recap.totalAlfa,
+                  );
+                });
+                _addLog(
+                  'Edit rekap absensi',
+                  '${recap.employeeName} (${recap.month}/${recap.year})',
+                );
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _numberField(TextEditingController controller, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(labelText: label),
+      ),
+    );
+  }
+
   String _labelRole(AdminRole role) =>
       role == AdminRole.admin ? 'Admin' : 'Staff';
 
@@ -1071,8 +1266,10 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         return 'Izin';
       case ApprovalType.cuti:
         return 'Cuti';
-      case ApprovalType.off:
-        return 'Off';
+      case ApprovalType.extraOff:
+        return 'Extra Off';
+      case ApprovalType.sakit:
+        return 'Sakit';
       case ApprovalType.lembur:
         return 'Lembur';
     }
@@ -1117,7 +1314,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
           totalKaryawan: _totalKaryawan,
           hadirHariIni: _jumlahHadirHariIni,
           totalPending: _totalPending,
-          tidakHadirHariIni: _jumlahTidakHadirHariIni,
+          totalOffHariIni: _jumlahOffHariIni,
         ),
         const SizedBox(height: 12),
         _RecapCard(
@@ -1129,18 +1326,15 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
           onYearChanged: (value) => setState(() => _selectedYear = value),
           onNameFilterChanged: (value) => setState(() => _nameFilter = value),
           currentRecapData: _currentRecapData,
-          totalHadir: _sum((e) => e.totalHadir),
-          totalOff: _sum((e) => e.totalOff),
-          totalTidakHadir: _sum((e) => e.totalTidakHadir),
-          totalCuti: _sum((e) => e.totalCuti),
-          totalExtraOff: _sum((e) => e.totalExtraOff),
-          totalSakit: _sum((e) => e.totalSakit),
-          totalAlfa: _sum((e) => e.totalAlfa),
-          totalLembur: _sum((e) => e.totalLembur),
-          attendanceRate: _attendanceRate,
           onExportExcel: () => _exportData('Excel'),
           onExportPdf: () => _exportData('PDF'),
           onShowDetail: _showDailyDetail,
+          onEditRecap: _editRecap,
+          annualLeaveQuota: _annualLeaveQuota,
+          remainingLeaveByEmployee: {
+            for (final employee in _employees)
+              employee.fullName: _remainingLeaveForEmployee(employee.fullName),
+          },
           emptyTextColor: cs.onSurfaceVariant,
         ),
         const SizedBox(height: 12),
@@ -1158,6 +1352,8 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
               )
               .take(8)
               .toList(),
+          annualLeaveQuota: _annualLeaveQuota,
+          remainingLeaveLookup: _remainingLeaveForEmployee,
           emptyTextColor: cs.onSurfaceVariant,
         ),
         const SizedBox(height: 12),
@@ -1216,13 +1412,13 @@ class _OverviewCard extends StatelessWidget {
   final int totalKaryawan;
   final int hadirHariIni;
   final int totalPending;
-  final int tidakHadirHariIni;
+  final int totalOffHariIni;
 
   const _OverviewCard({
     required this.totalKaryawan,
     required this.hadirHariIni,
     required this.totalPending,
-    required this.tidakHadirHariIni,
+    required this.totalOffHariIni,
   });
 
   @override
@@ -1247,12 +1443,12 @@ class _OverviewCard extends StatelessWidget {
                 _MetricChip(label: 'Total Karyawan', value: '$totalKaryawan'),
                 _MetricChip(label: 'Hadir Hari Ini', value: '$hadirHariIni'),
                 _MetricChip(
-                  label: 'Pending Izin/Cuti/Off/Lembur',
+                  label: 'Pending Izin/Cuti/Extra Off/Sakit/Lembur',
                   value: '$totalPending',
                 ),
                 _MetricChip(
-                  label: 'Tidak Hadir Hari Ini',
-                  value: '$tidakHadirHariIni',
+                  label: 'Total Off Hari Ini',
+                  value: '$totalOffHariIni',
                 ),
               ],
             ),
@@ -1272,18 +1468,12 @@ class _RecapCard extends StatelessWidget {
   final ValueChanged<int> onYearChanged;
   final ValueChanged<String> onNameFilterChanged;
   final List<_MonthlyRecap> currentRecapData;
-  final int totalHadir;
-  final int totalOff;
-  final int totalTidakHadir;
-  final int totalCuti;
-  final int totalExtraOff;
-  final int totalSakit;
-  final int totalAlfa;
-  final int totalLembur;
-  final double attendanceRate;
   final VoidCallback onExportExcel;
   final VoidCallback onExportPdf;
   final ValueChanged<_MonthlyRecap> onShowDetail;
+  final ValueChanged<_MonthlyRecap> onEditRecap;
+  final int annualLeaveQuota;
+  final Map<String, int> remainingLeaveByEmployee;
   final Color emptyTextColor;
 
   const _RecapCard({
@@ -1295,18 +1485,12 @@ class _RecapCard extends StatelessWidget {
     required this.onYearChanged,
     required this.onNameFilterChanged,
     required this.currentRecapData,
-    required this.totalHadir,
-    required this.totalOff,
-    required this.totalTidakHadir,
-    required this.totalCuti,
-    required this.totalExtraOff,
-    required this.totalSakit,
-    required this.totalAlfa,
-    required this.totalLembur,
-    required this.attendanceRate,
     required this.onExportExcel,
     required this.onExportPdf,
     required this.onShowDetail,
+    required this.onEditRecap,
+    required this.annualLeaveQuota,
+    required this.remainingLeaveByEmployee,
     required this.emptyTextColor,
   });
 
@@ -1392,28 +1576,6 @@ class _RecapCard extends StatelessWidget {
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
-              runSpacing: 8,
-              children: [
-                _MetricChip(label: 'Total Hadir', value: '$totalHadir'),
-                _MetricChip(label: 'Total Off', value: '$totalOff'),
-                _MetricChip(
-                  label: 'Total Tidak Hadir',
-                  value: '$totalTidakHadir',
-                ),
-                _MetricChip(label: 'Total Cuti', value: '$totalCuti'),
-                _MetricChip(label: 'Total Extra Off', value: '$totalExtraOff'),
-                _MetricChip(label: 'Total Sakit', value: '$totalSakit'),
-                _MetricChip(label: 'Total Alfa', value: '$totalAlfa'),
-                _MetricChip(label: 'Total Lembur', value: '$totalLembur jam'),
-                _MetricChip(
-                  label: 'Persentase Kehadiran',
-                  value: '${attendanceRate.toStringAsFixed(1)}%',
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
               children: [
                 OutlinedButton.icon(
                   onPressed: onExportExcel,
@@ -1442,11 +1604,20 @@ class _RecapCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
-                    'Hadir ${item.totalHadir} | Off ${item.totalOff} | Tidak Hadir ${item.totalTidakHadir} | Cuti ${item.totalCuti} | Extra Off ${item.totalExtraOff} | Sakit ${item.totalSakit} | Alfa ${item.totalAlfa} | Lembur ${item.totalLembur} jam',
+                    'Hadir ${item.totalHadir} | Off ${item.totalOff} | Tidak Hadir ${item.totalTidakHadir} | Cuti ${item.totalCuti} | Extra Off ${item.totalExtraOff} | Sakit ${item.totalSakit} | Alfa ${item.totalAlfa} | Lembur ${item.totalLembur} jam | Sisa Cuti ${remainingLeaveByEmployee[item.employeeName] ?? annualLeaveQuota}/$annualLeaveQuota',
                   ),
-                  trailing: TextButton(
-                    onPressed: () => onShowDetail(item),
-                    child: const Text('Detail Harian'),
+                  trailing: Wrap(
+                    spacing: 4,
+                    children: [
+                      TextButton(
+                        onPressed: () => onShowDetail(item),
+                        child: const Text('Detail'),
+                      ),
+                      TextButton(
+                        onPressed: () => onEditRecap(item),
+                        child: const Text('Edit'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1470,6 +1641,8 @@ class _ApprovalCard extends StatelessWidget {
   final String Function(ApprovalStatus) labelApprovalStatus;
   final Color Function(ApprovalStatus) statusColor;
   final List<_ActivityLog> approvalHistory;
+  final int annualLeaveQuota;
+  final int Function(String employeeName) remainingLeaveLookup;
   final Color emptyTextColor;
 
   const _ApprovalCard({
@@ -1479,6 +1652,8 @@ class _ApprovalCard extends StatelessWidget {
     required this.labelApprovalStatus,
     required this.statusColor,
     required this.approvalHistory,
+    required this.annualLeaveQuota,
+    required this.remainingLeaveLookup,
     required this.emptyTextColor,
   });
 
@@ -1493,7 +1668,7 @@ class _ApprovalCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Approval Izin/Cuti/Off/Lembur',
+              'Approval Izin/Cuti/Extra Off/Sakit/Lembur',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
@@ -1543,6 +1718,11 @@ class _ApprovalCard extends StatelessWidget {
                         'Alasan: ${(item.reason == null || item.reason!.trim().isEmpty) ? '-' : item.reason}',
                       ),
                       Text('Lampiran: ${item.attachment ?? '-'}'),
+                      if (item.type == ApprovalType.cuti)
+                        Text(
+                          'Sisa Cuti: ${remainingLeaveLookup(item.employeeName)}/$annualLeaveQuota',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       if (item.status == ApprovalStatus.pending) ...[
                         const SizedBox(height: 8),
                         Row(
@@ -1644,7 +1824,7 @@ class _PayrollCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Periode $selectedMonth/$selectedYear - generate dari total hadir, lembur, off, extra off, dan potongan.',
+              'Periode $selectedMonth/$selectedYear - komponen gaji dan potongan, kirim dalam format PDF.',
             ),
             const SizedBox(height: 10),
             FilledButton.icon(
@@ -1706,22 +1886,29 @@ class _PayrollCard extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text('Gaji Pokok: ${currency.format(slip.gajiPokok)}'),
                         Text(
-                          'Tunjangan Hadir: ${currency.format(slip.tunjanganHadir)}',
+                          'Tunjangan Jabatan: ${currency.format(slip.tunjanganJabatan)}',
+                        ),
+                        Text('Lembur: ${currency.format(slip.lembur)}'),
+                        Text(
+                          'Tunjangan Lain: ${currency.format(slip.tunjanganLain)}',
                         ),
                         Text(
-                          'Upah Lembur: ${currency.format(slip.upahLembur)}',
+                          'Potongan Pinjaman: ${currency.format(slip.potonganPinjaman)}',
                         ),
                         Text(
-                          'Insentif Off: ${currency.format(slip.insentifOff)}',
+                          'Potongan Absen: ${currency.format(slip.potonganAbsen)}',
                         ),
                         Text(
-                          'Insentif Extra Off: ${currency.format(slip.insentifExtraOff)}',
+                          'Potongan BPJS Kesehatan: ${currency.format(slip.potonganBpjsKesehatan)}',
                         ),
                         Text(
-                          'Potongan Alfa: ${currency.format(slip.potonganAlfa)}',
+                          'Potongan BPJS TK JHT: ${currency.format(slip.potonganBpjsTkJht)}',
                         ),
                         Text(
-                          'Potongan Tidak Hadir: ${currency.format(slip.potonganTidakHadir)}',
+                          'Potongan BPJS TK JP: ${currency.format(slip.potonganBpjsTkJp)}',
+                        ),
+                        Text(
+                          'Potongan Pajak PPh21: ${currency.format(slip.potonganPph21)}',
                         ),
                         Text(
                           'Catatan: ${slip.notes.isEmpty ? '-' : slip.notes}',
@@ -1745,7 +1932,9 @@ class _PayrollCard extends StatelessWidget {
                               child: FilledButton(
                                 onPressed: () => onSendSlip(slip),
                                 child: Text(
-                                  slip.sentAt == null ? 'Kirim' : 'Kirim Ulang',
+                                  slip.sentAt == null
+                                      ? 'Kirim PDF'
+                                      : 'Kirim Ulang PDF',
                                 ),
                               ),
                             ),
@@ -1850,6 +2039,10 @@ class _EmployeeManagementCard extends StatelessWidget {
                                 ),
                                 Text(
                                   'Status: ${employee.employeeStatus}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                Text(
+                                  'Gaji Pokok: Rp ${NumberFormat.decimalPattern('id_ID').format(employee.gajiPokok)}',
                                   style: const TextStyle(fontSize: 12),
                                 ),
                               ],

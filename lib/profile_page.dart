@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:absensi_king_royal/payroll_models.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -49,12 +50,15 @@ class EmployeeProfilePage extends StatefulWidget {
   final String? profilePhotoPath;
   final ValueChanged<String?> onProfilePhotoChanged;
   final int totalHadir;
+  final int totalOff;
   final int totalCuti;
   final int totalExtraOff;
   final int totalSakit;
-  final int totalTidakHadir;
   final int totalLembur;
+  final int annualLeaveQuota;
+  final int remainingLeave;
   final List<LeaveHistoryItem> leaveHistory;
+  final List<SentPayrollSlip> salarySlips;
   final VoidCallback onResetPassword;
   final VoidCallback onLogout;
 
@@ -77,12 +81,15 @@ class EmployeeProfilePage extends StatefulWidget {
     required this.profilePhotoPath,
     required this.onProfilePhotoChanged,
     required this.totalHadir,
+    required this.totalOff,
     required this.totalCuti,
     required this.totalExtraOff,
     required this.totalSakit,
-    required this.totalTidakHadir,
     required this.totalLembur,
+    required this.annualLeaveQuota,
+    required this.remainingLeave,
     required this.leaveHistory,
+    required this.salarySlips,
     required this.onResetPassword,
     required this.onLogout,
   });
@@ -119,6 +126,17 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
   void _removeProfilePhoto() {
     setState(() => _profilePhotoPath = null);
     widget.onProfilePhotoChanged(null);
+  }
+
+  void _openSlipHistoryPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _SlipHistoryPage(
+          employeeName: widget.fullName,
+          slips: widget.salarySlips,
+        ),
+      ),
+    );
   }
 
   @override
@@ -242,6 +260,10 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                             value: '${widget.totalHadir} hari',
                           ),
                           _StatChip(
+                            label: 'Total Off',
+                            value: '${widget.totalOff} hari',
+                          ),
+                          _StatChip(
                             label: 'Total Cuti',
                             value: '${widget.totalCuti} hari',
                           ),
@@ -254,12 +276,13 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                             value: '${widget.totalSakit} hari',
                           ),
                           _StatChip(
-                            label: 'Total Tidak Hadir',
-                            value: '${widget.totalTidakHadir} hari',
-                          ),
-                          _StatChip(
                             label: 'Total Lembur',
                             value: '${widget.totalLembur} jam',
+                          ),
+                          _StatChip(
+                            label: 'Sisa Cuti',
+                            value:
+                                '${widget.remainingLeave} dari ${widget.annualLeaveQuota} hari',
                           ),
                         ],
                       ),
@@ -304,15 +327,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
               ),
               const SizedBox(height: 10),
               FilledButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Fitur lihat slip gaji akan segera tersedia.',
-                      ),
-                    ),
-                  );
-                },
+                onPressed: _openSlipHistoryPage,
                 icon: const Icon(Icons.receipt_long_rounded),
                 label: const Text('Lihat Slip Gaji'),
               ),
@@ -328,6 +343,63 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SlipHistoryPage extends StatelessWidget {
+  final String employeeName;
+  final List<SentPayrollSlip> slips;
+
+  const _SlipHistoryPage({required this.employeeName, required this.slips});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Slip Gaji Terkirim')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            employeeName,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 10),
+          ...slips.map(
+            (slip) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(
+                  DateFormat(
+                    'MMMM yyyy',
+                    'id_ID',
+                  ).format(DateTime(slip.year, slip.month)),
+                ),
+                subtitle: Text(
+                  'Terkirim ${DateFormat('dd/MM/yyyy HH:mm', 'id_ID').format(slip.sentAt)} | Total ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(slip.totalGaji)}',
+                ),
+                trailing: FilledButton.tonalIcon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Membuka file PDF slip (mock).'),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.picture_as_pdf_rounded),
+                  label: const Text('Lihat PDF'),
+                ),
+              ),
+            ),
+          ),
+          if (slips.isEmpty)
+            Text(
+              'Belum ada slip gaji yang dikirim.',
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
         ],
       ),
     );
