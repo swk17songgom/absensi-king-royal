@@ -207,7 +207,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                       ),
                       const SizedBox(height: 10),
                       _InfoText(label: 'Nama Lengkap', value: widget.fullName),
-                      _InfoText(label: 'NIK', value: widget.nik),
+                      _InfoText(label: 'kode karyawan', value: widget.nik),
                       _InfoText(
                         label: 'Tempat, Tanggal Lahir',
                         value:

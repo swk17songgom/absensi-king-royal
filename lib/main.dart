@@ -299,6 +299,35 @@ class _HomeScreenState extends State<HomeScreen> {
     ).push(MaterialPageRoute(builder: (_) => const RiwayatPage()));
   }
 
+  DateTime? _parseDateLabel(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      return DateFormat('dd/MM/yyyy', 'id_ID').parseStrict(trimmed);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _isLeaveInMonth(LeaveHistoryItem item, int year, int month) {
+    final rangeParts = item.date.split(' - ');
+    final start = _parseDateLabel(rangeParts.first);
+    if (start == null) return false;
+    final end = rangeParts.length > 1
+        ? (_parseDateLabel(rangeParts.last) ?? start)
+        : start;
+
+    final monthStart = DateTime(year, month, 1);
+    final monthEnd = DateTime(year, month + 1, 0, 23, 59, 59);
+    return !end.isBefore(monthStart) && !start.isAfter(monthEnd);
+  }
+
+  List<LeaveHistoryItem> get _leaveHistoryThisMonth {
+    return leaveHistory
+        .where((item) => _isLeaveInMonth(item, _now.year, _now.month))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final jam = DateFormat('HH:mm:ss', 'id_ID').format(_now);
@@ -358,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       totalExtraOff: totalExtraOff,
                       totalSakit: totalSakit,
                       totalLembur: totalLembur,
-                      leaveHistory: leaveHistory,
+                      leaveHistory: _leaveHistoryThisMonth,
                       attendanceStatus: switch (attendanceState) {
                         AttendanceSessionState.notCheckedIn => 'Belum Absen',
                         AttendanceSessionState.checkedIn => 'Sudah Absen Masuk',
@@ -480,7 +509,7 @@ class _HeaderCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'NIK: $employeeNik',
+                'kode karyawan: $employeeNik',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: cs.onSurfaceVariant),
               ),
@@ -606,23 +635,36 @@ class _InfoBulanIniCard extends StatelessWidget {
               ...leaveHistory.map(
                 (item) => Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          item.title,
-                          style: TextStyle(color: cs.onSurfaceVariant),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.title,
+                              style: TextStyle(color: cs.onSurfaceVariant),
+                            ),
+                          ),
+                          _LeaveStatusBadge(
+                            status: switch (item.status) {
+                              LeaveHistoryStatus.approved =>
+                                LeaveSubmissionStatus.approved,
+                              LeaveHistoryStatus.pending =>
+                                LeaveSubmissionStatus.pending,
+                              LeaveHistoryStatus.rejected =>
+                                LeaveSubmissionStatus.rejected,
+                            },
+                          ),
+                        ],
                       ),
-                      _LeaveStatusBadge(
-                        status: switch (item.status) {
-                          LeaveHistoryStatus.approved =>
-                            LeaveSubmissionStatus.approved,
-                          LeaveHistoryStatus.pending =>
-                            LeaveSubmissionStatus.pending,
-                          LeaveHistoryStatus.rejected =>
-                            LeaveSubmissionStatus.rejected,
-                        },
+                      const SizedBox(height: 2),
+                      Text(
+                        'Tanggal: ${item.date}',
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),

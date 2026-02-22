@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -81,6 +80,18 @@ class _AttendanceCapturePageState extends State<AttendanceCapturePage> {
       if (!mounted) return;
       setState(() {
         _cameraMessage = 'Kamera belum tersedia di device ini.';
+        _isOpeningCamera = false;
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        final code = e.code.toLowerCase();
+        if (code.contains('denied')) {
+          _cameraMessage =
+              'Izin kamera ditolak. Aktifkan izin kamera di pengaturan aplikasi.';
+        } else {
+          _cameraMessage = 'Gagal membuka kamera (${e.code}).';
+        }
         _isOpeningCamera = false;
       });
     } catch (_) {
@@ -264,7 +275,10 @@ class _AttendanceCapturePageState extends State<AttendanceCapturePage> {
                           value: widget.attendanceLabel,
                         ),
                         _InfoRow(label: 'Nama', value: widget.employeeName),
-                        _InfoRow(label: 'NIK', value: widget.employeeNik),
+                        _InfoRow(
+                          label: 'kode karyawan',
+                          value: widget.employeeNik,
+                        ),
                         _InfoRow(label: 'Hari / Tanggal', value: dateLabel),
                         _InfoRow(
                           label: widget.pageTitle.contains('Masuk')

@@ -20,7 +20,7 @@ void main() {
 
     expect(find.text('Selamat Datang'), findsOneWidget);
     expect(find.text('Nama Karyawan'), findsOneWidget);
-    expect(find.textContaining('NIK:'), findsOneWidget);
+    expect(find.textContaining('kode karyawan:'), findsOneWidget);
     expect(find.text('Jabatan'), findsOneWidget);
     expect(find.text('Departemen'), findsOneWidget);
     expect(find.text('Info Bulan Ini'), findsOneWidget);

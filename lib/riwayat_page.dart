@@ -10,12 +10,16 @@ class AttendanceHistoryItem {
   final TimeOfDay? checkIn;
   final TimeOfDay? checkOut;
   final AttendanceDayStatus status;
+  final String? checkInPhotoPath;
+  final String? checkOutPhotoPath;
 
   const AttendanceHistoryItem({
     required this.date,
     required this.checkIn,
     required this.checkOut,
     required this.status,
+    this.checkInPhotoPath,
+    this.checkOutPhotoPath,
   });
 }
 
@@ -41,12 +45,16 @@ class _RiwayatPageState extends State<RiwayatPage> {
         checkIn: const TimeOfDay(hour: 8, minute: 1),
         checkOut: const TimeOfDay(hour: 17, minute: 6),
         status: AttendanceDayStatus.hadir,
+        checkInPhotoPath: 'assets/icons/app_icon.jpg',
+        checkOutPhotoPath: 'assets/icons/app_icon.jpg',
       ),
       AttendanceHistoryItem(
         date: DateTime(now.year, now.month, 16),
         checkIn: const TimeOfDay(hour: 8, minute: 3),
         checkOut: const TimeOfDay(hour: 17, minute: 10),
         status: AttendanceDayStatus.hadir,
+        checkInPhotoPath: 'assets/icons/app_icon.jpg',
+        checkOutPhotoPath: 'assets/icons/app_icon.jpg',
       ),
       AttendanceHistoryItem(
         date: DateTime(now.year, now.month, 15),
@@ -83,6 +91,8 @@ class _RiwayatPageState extends State<RiwayatPage> {
         checkIn: const TimeOfDay(hour: 8, minute: 5),
         checkOut: const TimeOfDay(hour: 17, minute: 3),
         status: AttendanceDayStatus.hadir,
+        checkInPhotoPath: 'assets/icons/app_icon.jpg',
+        checkOutPhotoPath: 'assets/icons/app_icon.jpg',
       ),
       AttendanceHistoryItem(
         date: DateTime(now.year, now.month - 1, 27),
@@ -343,6 +353,45 @@ class _HistoryCard extends StatelessWidget {
     return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
   }
 
+  Widget _photoBox(String title, String? photoPath) {
+    final normalizedPath = photoPath?.trim() ?? '';
+    final hasPhoto = normalizedPath.isNotEmpty;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 110,
+              width: double.infinity,
+              color: const Color(0xFFECEFF5),
+              child: !hasPhoto
+                  ? const Center(
+                      child: Text(
+                        'Tidak ada foto',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    )
+                  : Image.asset(
+                      normalizedPath,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Text(
+                          'Foto gagal dimuat',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final date = DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(item.date);
@@ -371,6 +420,14 @@ class _HistoryCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _photoBox('Foto Masuk', item.checkInPhotoPath),
+                const SizedBox(width: 10),
+                _photoBox('Foto Pulang', item.checkOutPhotoPath),
               ],
             ),
             const SizedBox(height: 10),

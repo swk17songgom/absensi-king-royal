@@ -11,6 +11,39 @@ enum ApprovalType { izin, cuti, extraOff, sakit, lembur }
 
 enum ApprovalStatus { pending, approved, rejected }
 
+enum _DailyAttendanceStatus {
+  hadir,
+  off,
+  extraOff,
+  cuti,
+  sakit,
+  alfa,
+  tidakHadir,
+}
+
+class _DailyAttendanceDetail {
+  DateTime date;
+  _DailyAttendanceStatus status;
+  TimeOfDay? checkIn;
+  TimeOfDay? checkOut;
+  int lemburHours;
+  String note;
+  String? checkInPhotoPath;
+  String? checkOutPhotoPath;
+  bool isManuallyEdited = false;
+
+  _DailyAttendanceDetail({
+    required this.date,
+    required this.status,
+    required this.checkIn,
+    required this.checkOut,
+    required this.lemburHours,
+    required this.note,
+    required this.checkInPhotoPath,
+    required this.checkOutPhotoPath,
+  });
+}
+
 class _MonthlyRecap {
   final String employeeName;
   final int month;
@@ -23,6 +56,7 @@ class _MonthlyRecap {
   int totalSakit;
   int totalAlfa;
   int totalLembur;
+  final List<_DailyAttendanceDetail> dailyDetails;
 
   _MonthlyRecap({
     required this.employeeName,
@@ -36,6 +70,7 @@ class _MonthlyRecap {
     required this.totalSakit,
     required this.totalAlfa,
     required this.totalLembur,
+    required this.dailyDetails,
   });
 }
 
@@ -155,14 +190,22 @@ class _EmployeeData {
 class _ActivityLog {
   final DateTime time;
   final String actor;
+  final String module;
   final String action;
   final String target;
+  final String? detail;
+  final String? before;
+  final String? after;
 
   const _ActivityLog({
     required this.time,
     required this.actor,
+    required this.module,
     required this.action,
     required this.target,
+    this.detail,
+    this.before,
+    this.after,
   });
 }
 
@@ -212,6 +255,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         totalSakit: 0,
         totalAlfa: 0,
         totalLembur: 6,
+        dailyDetails: <_DailyAttendanceDetail>[],
       ),
       _MonthlyRecap(
         employeeName: 'Dinda Maharani',
@@ -225,6 +269,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         totalSakit: 1,
         totalAlfa: 0,
         totalLembur: 3,
+        dailyDetails: <_DailyAttendanceDetail>[],
       ),
       _MonthlyRecap(
         employeeName: 'Reno Pratama',
@@ -238,6 +283,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         totalSakit: 1,
         totalAlfa: 1,
         totalLembur: 4,
+        dailyDetails: <_DailyAttendanceDetail>[],
       ),
       _MonthlyRecap(
         employeeName: 'Ari Saputra',
@@ -251,6 +297,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         totalSakit: 0,
         totalAlfa: 0,
         totalLembur: 8,
+        dailyDetails: <_DailyAttendanceDetail>[],
       ),
       _MonthlyRecap(
         employeeName: 'Dinda Maharani',
@@ -264,6 +311,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         totalSakit: 0,
         totalAlfa: 0,
         totalLembur: 2,
+        dailyDetails: <_DailyAttendanceDetail>[],
       ),
     ];
 
@@ -366,6 +414,13 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
         gajiPokok: 4300000,
       ),
     ];
+
+    for (final recap in _recapData) {
+      if (recap.dailyDetails.isEmpty) {
+        recap.dailyDetails.addAll(_buildDailyDetailsFromRecap(recap));
+      }
+      _syncRecapTotalsFromDailyDetails(recap);
+    }
   }
 
   List<_MonthlyRecap> get _currentRecapData {
@@ -406,15 +461,26 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     return (_annualLeaveQuota - used).clamp(0, _annualLeaveQuota);
   }
 
-  void _addLog(String action, String target) {
+  void _addLog(
+    String action,
+    String target, {
+    String module = 'Umum',
+    String? detail,
+    String? before,
+    String? after,
+  }) {
     setState(() {
       _activityLogs.insert(
         0,
         _ActivityLog(
           time: DateTime.now(),
           actor: widget.currentUserName,
+          module: module,
           action: action,
           target: target,
+          detail: detail,
+          before: before,
+          after: after,
         ),
       );
     });
@@ -424,15 +490,27 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Export $format berhasil dibuat (mock).')),
     );
-    _addLog('Export $format', 'Rekap absensi $_selectedMonth/$_selectedYear');
+    _addLog(
+      'Export $format',
+      'Rekap absensi $_selectedMonth/$_selectedYear',
+      module: 'Rekap Absensi',
+      detail:
+          'Admin mengekspor data rekap periode $_selectedMonth/$_selectedYear',
+    );
   }
 
   void _updateApproval(_ApprovalRequest request, ApprovalStatus status) {
+    final previousStatus = request.status;
     setState(() => request.status = status);
     final action = status == ApprovalStatus.approved ? 'Approve' : 'Reject';
     _addLog(
       '$action pengajuan',
       '${request.employeeName} - ${_labelApprovalType(request.type)}',
+      module: 'Approval',
+      before: _labelApprovalStatus(previousStatus),
+      after: _labelApprovalStatus(status),
+      detail:
+          'Tanggal ${DateFormat('dd/MM/yyyy').format(request.date)} | Alasan ${request.reason ?? "-"}',
     );
   }
 
@@ -446,6 +524,223 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
   int _safeParseInt(String value, int fallback) {
     final parsed = int.tryParse(value.trim());
     return parsed ?? fallback;
+  }
+
+  List<_DailyAttendanceDetail> _buildDailyDetailsFromRecap(
+    _MonthlyRecap recap,
+  ) {
+    final totalRecordedDays =
+        recap.totalHadir +
+        recap.totalOff +
+        recap.totalTidakHadir +
+        recap.totalCuti +
+        recap.totalExtraOff +
+        recap.totalSakit +
+        recap.totalAlfa;
+    final workingDays = totalRecordedDays <= 0 ? 1 : totalRecordedDays;
+    final counts = <_DailyAttendanceStatus, int>{
+      _DailyAttendanceStatus.hadir: recap.totalHadir,
+      _DailyAttendanceStatus.off: recap.totalOff,
+      _DailyAttendanceStatus.cuti: recap.totalCuti,
+      _DailyAttendanceStatus.extraOff: recap.totalExtraOff,
+      _DailyAttendanceStatus.sakit: recap.totalSakit,
+      _DailyAttendanceStatus.alfa: recap.totalAlfa,
+      _DailyAttendanceStatus.tidakHadir: recap.totalTidakHadir,
+    };
+    var remainingLembur = recap.totalLembur;
+    final lastDateOfMonth = DateTime(recap.year, recap.month + 1, 0);
+    final details = <_DailyAttendanceDetail>[];
+
+    _DailyAttendanceStatus takeStatus() {
+      for (final entry in counts.entries) {
+        if (entry.value > 0) {
+          counts[entry.key] = entry.value - 1;
+          return entry.key;
+        }
+      }
+      return _DailyAttendanceStatus.off;
+    }
+
+    for (var i = 0; i < workingDays; i++) {
+      final status = takeStatus();
+      final date = lastDateOfMonth.subtract(Duration(days: i));
+      final isHadir = status == _DailyAttendanceStatus.hadir;
+      final lemburHours = isHadir && remainingLembur > 0 ? 1 : 0;
+      if (lemburHours > 0) {
+        remainingLembur -= 1;
+      }
+      final checkIn = isHadir ? TimeOfDay(hour: 8, minute: (i * 3) % 60) : null;
+      final checkOut = isHadir
+          ? TimeOfDay(hour: 17 + lemburHours, minute: (i * 7) % 60)
+          : null;
+
+      details.add(
+        _DailyAttendanceDetail(
+          date: date,
+          status: status,
+          checkIn: checkIn,
+          checkOut: checkOut,
+          lemburHours: lemburHours,
+          note: _dailyStatusLabel(status),
+          checkInPhotoPath: isHadir ? 'assets/icons/app_icon.jpg' : null,
+          checkOutPhotoPath: isHadir ? 'assets/icons/app_icon.jpg' : null,
+        ),
+      );
+    }
+    return details;
+  }
+
+  void _syncRecapTotalsFromDailyDetails(_MonthlyRecap recap) {
+    var hadir = 0;
+    var off = 0;
+    var tidakHadir = 0;
+    var cuti = 0;
+    var extraOff = 0;
+    var sakit = 0;
+    var alfa = 0;
+    var lembur = 0;
+
+    for (final day in recap.dailyDetails) {
+      switch (day.status) {
+        case _DailyAttendanceStatus.hadir:
+          hadir += 1;
+          lembur += day.lemburHours;
+        case _DailyAttendanceStatus.off:
+          off += 1;
+        case _DailyAttendanceStatus.extraOff:
+          extraOff += 1;
+        case _DailyAttendanceStatus.cuti:
+          cuti += 1;
+        case _DailyAttendanceStatus.sakit:
+          sakit += 1;
+        case _DailyAttendanceStatus.alfa:
+          alfa += 1;
+        case _DailyAttendanceStatus.tidakHadir:
+          tidakHadir += 1;
+      }
+    }
+
+    recap.totalHadir = hadir;
+    recap.totalOff = off;
+    recap.totalTidakHadir = tidakHadir;
+    recap.totalCuti = cuti;
+    recap.totalExtraOff = extraOff;
+    recap.totalSakit = sakit;
+    recap.totalAlfa = alfa;
+    recap.totalLembur = lembur;
+  }
+
+  String _dailyStatusLabel(_DailyAttendanceStatus status) {
+    switch (status) {
+      case _DailyAttendanceStatus.hadir:
+        return 'Hadir';
+      case _DailyAttendanceStatus.off:
+        return 'Off';
+      case _DailyAttendanceStatus.extraOff:
+        return 'Extra Off';
+      case _DailyAttendanceStatus.cuti:
+        return 'Cuti';
+      case _DailyAttendanceStatus.sakit:
+        return 'Sakit';
+      case _DailyAttendanceStatus.alfa:
+        return 'Alfa';
+      case _DailyAttendanceStatus.tidakHadir:
+        return 'Tidak Hadir';
+    }
+  }
+
+  Color _dailyStatusColor(_DailyAttendanceStatus status) {
+    switch (status) {
+      case _DailyAttendanceStatus.hadir:
+        return const Color(0xFF1B5E20);
+      case _DailyAttendanceStatus.off:
+        return const Color(0xFF455A64);
+      case _DailyAttendanceStatus.extraOff:
+        return const Color(0xFF1565C0);
+      case _DailyAttendanceStatus.cuti:
+        return const Color(0xFF6A1B9A);
+      case _DailyAttendanceStatus.sakit:
+        return const Color(0xFFE65100);
+      case _DailyAttendanceStatus.alfa:
+        return const Color(0xFFC62828);
+      case _DailyAttendanceStatus.tidakHadir:
+        return const Color(0xFFB71C1C);
+    }
+  }
+
+  String _timeText(TimeOfDay? value) {
+    if (value == null) return '-';
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute WIB';
+  }
+
+  TimeOfDay? _parseTimeOfDay(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    final parts = trimmed.split(':');
+    if (parts.length != 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  Widget _attendancePhotoPreview(String title, String? path) {
+    Widget content;
+    if (path == null || path.trim().isEmpty) {
+      content = const Center(
+        child: Text('Tidak ada foto', style: TextStyle(fontSize: 12)),
+      );
+    } else if (path.startsWith('assets/')) {
+      content = Image.asset(path, fit: BoxFit.cover);
+    } else if (File(path).existsSync()) {
+      content = Image.file(File(path), fit: BoxFit.cover);
+    } else {
+      content = const Center(
+        child: Text(
+          'Foto tidak ditemukan',
+          style: TextStyle(fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 120,
+              width: double.infinity,
+              color: const Color(0xFFECEFF5),
+              child: content,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatRecap(_MonthlyRecap recap) {
+    return 'Hadir ${recap.totalHadir}, Off ${recap.totalOff}, Tidak Hadir ${recap.totalTidakHadir}, Cuti ${recap.totalCuti}, Extra Off ${recap.totalExtraOff}, Sakit ${recap.totalSakit}, Alfa ${recap.totalAlfa}, Lembur ${recap.totalLembur} jam';
+  }
+
+  String _formatDailyDetail(_DailyAttendanceDetail detail) {
+    return 'Status ${_dailyStatusLabel(detail.status)}, Masuk ${_timeText(detail.checkIn)}, Pulang ${_timeText(detail.checkOut)}, Lembur ${detail.lemburHours} jam, Catatan ${detail.note.trim().isEmpty ? "-" : detail.note}';
+  }
+
+  String _formatSlip(_SalarySlip slip) {
+    return 'Gaji Pokok ${slip.gajiPokok}, Tunjangan Jabatan ${slip.tunjanganJabatan}, Lembur ${slip.lembur}, Tunjangan Lain ${slip.tunjanganLain}, Potongan Absen ${slip.potonganAbsen}, Total ${slip.totalGaji}';
+  }
+
+  String _formatEmployee(_EmployeeData employee) {
+    return 'kode karyawan ${employee.nik}, Jabatan ${employee.jobTitle}, Role ${_labelRole(employee.role)}, Departemen ${employee.department}, Status ${employee.employeeStatus}, Aktif ${employee.isActive ? "Ya" : "Tidak"}';
   }
 
   _SalarySlip _createSalarySlip(_EmployeeData employee, _MonthlyRecap? recap) {
@@ -495,6 +790,8 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     _addLog(
       'Generate slip gaji',
       '${employee.fullName} ($_selectedMonth/$_selectedYear)',
+      module: 'Payroll',
+      detail: _formatSlip(newSlip),
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -527,6 +824,8 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     _addLog(
       'Generate massal slip gaji',
       'Periode $_selectedMonth/$_selectedYear',
+      module: 'Payroll',
+      detail: 'Jumlah slip dibuat: ${activeEmployees.length}',
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -670,6 +969,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
             ),
             FilledButton(
               onPressed: () {
+                final beforeSummary = _formatSlip(slip);
                 setState(() {
                   slip.gajiPokok = _safeParseInt(
                     gajiPokokController.text,
@@ -713,9 +1013,14 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                   );
                   slip.notes = notesController.text.trim();
                 });
+                final afterSummary = _formatSlip(slip);
                 _addLog(
                   'Edit slip gaji',
                   '${slip.employeeName} (${slip.month}/${slip.year})',
+                  module: 'Payroll',
+                  before: beforeSummary,
+                  after: afterSummary,
+                  detail: 'Catatan: ${slip.notes.isEmpty ? "-" : slip.notes}',
                 );
                 Navigator.pop(dialogContext);
               },
@@ -743,6 +1048,9 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
     _addLog(
       'Kirim slip gaji PDF',
       '${slip.employeeName} (${slip.month}/${slip.year})',
+      module: 'Payroll',
+      detail:
+          'Total gaji ${slip.totalGaji} | Waktu kirim ${DateFormat('dd/MM/yyyy HH:mm').format(sentAt)}',
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -871,7 +1179,9 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                       const SizedBox(height: 8),
                       TextField(
                         controller: nikController,
-                        decoration: const InputDecoration(labelText: 'NIK'),
+                        decoration: const InputDecoration(
+                          labelText: 'kode karyawan',
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -1037,6 +1347,9 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
             ),
             FilledButton(
               onPressed: () {
+                final previousEmployeeSnapshot = employee == null
+                    ? null
+                    : _formatEmployee(employee);
                 final fullName = fullNameController.text.trim();
                 final nik = nikController.text.trim();
                 final placeOfBirth = placeOfBirthController.text.trim();
@@ -1106,6 +1419,13 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                 _addLog(
                   isEdit ? 'Edit data karyawan' : 'Tambah karyawan',
                   fullName,
+                  module: 'Manajemen Karyawan',
+                  before: previousEmployeeSnapshot,
+                  after: isEdit
+                      ? _formatEmployee(employee)
+                      : 'kode karyawan $nik, Jabatan $jobTitle, Role ${_labelRole(role)}, Departemen $department, Status $employeeStatus, Aktif Ya',
+                  detail:
+                      'Kontak $phone | Email $email | Gaji Pokok $gajiPokok',
                 );
                 Navigator.pop(dialogContext);
               },
@@ -1118,35 +1438,273 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
   }
 
   void _showDailyDetail(_MonthlyRecap recap) {
-    final days = List.generate(
-      5,
-      (index) => 'Hari ${index + 1}: ${index == 2 ? 'Lembur 2 jam' : 'Hadir'}',
-    );
-
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Detail Harian - ${recap.employeeName}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+        final items = recap.dailyDetails
+          ..sort((a, b) => b.date.compareTo(a.date));
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height * 0.85,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Detail Rekap Absensi - ${recap.employeeName}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Menampilkan foto, jam, status, dan catatan. Edit bisa dilakukan per hari.',
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        DateFormat(
+                                          'EEEE, dd MMMM yyyy',
+                                          'id_ID',
+                                        ).format(item.date),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _dailyStatusColor(item.status),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _dailyStatusLabel(item.status),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text('Jam Masuk: ${_timeText(item.checkIn)}'),
+                                Text('Jam Pulang: ${_timeText(item.checkOut)}'),
+                                Text('Lembur: ${item.lemburHours} jam'),
+                                Text(
+                                  'Catatan: ${item.note.trim().isEmpty ? '-' : item.note}',
+                                ),
+                                if (item.isManuallyEdited)
+                                  const Text(
+                                    'Data ini sudah diedit manual oleh admin.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    _attendancePhotoPreview(
+                                      'Foto Masuk',
+                                      item.checkInPhotoPath,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    _attendancePhotoPreview(
+                                      'Foto Pulang',
+                                      item.checkOutPhotoPath,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _editDailyAttendance(recap, item),
+                                    icon: const Icon(Icons.edit_rounded),
+                                    label: const Text('Edit Data Harian'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              ...days.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(e),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _editDailyAttendance(
+    _MonthlyRecap recap,
+    _DailyAttendanceDetail detail,
+  ) async {
+    var selectedStatus = detail.status;
+    final checkInController = TextEditingController(
+      text: detail.checkIn == null
+          ? ''
+          : '${detail.checkIn!.hour.toString().padLeft(2, '0')}:${detail.checkIn!.minute.toString().padLeft(2, '0')}',
+    );
+    final checkOutController = TextEditingController(
+      text: detail.checkOut == null
+          ? ''
+          : '${detail.checkOut!.hour.toString().padLeft(2, '0')}:${detail.checkOut!.minute.toString().padLeft(2, '0')}',
+    );
+    final lemburController = TextEditingController(
+      text: '${detail.lemburHours}',
+    );
+    final noteController = TextEditingController(text: detail.note);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            return AlertDialog(
+              title: Text(
+                'Edit Detail ${DateFormat('dd MMM yyyy', 'id_ID').format(detail.date)}',
+              ),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<_DailyAttendanceStatus>(
+                        value: selectedStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Status Kehadiran',
+                        ),
+                        items: _DailyAttendanceStatus.values
+                            .map(
+                              (status) => DropdownMenuItem(
+                                value: status,
+                                child: Text(_dailyStatusLabel(status)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setLocalState(() => selectedStatus = value);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: checkInController,
+                        decoration: const InputDecoration(
+                          labelText: 'Jam Masuk (HH:mm)',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: checkOutController,
+                        decoration: const InputDecoration(
+                          labelText: 'Jam Pulang (HH:mm)',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: lemburController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Lembur (jam)',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: noteController,
+                        minLines: 2,
+                        maxLines: 3,
+                        decoration: const InputDecoration(labelText: 'Catatan'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final beforeSummary = _formatDailyDetail(detail);
+                    setState(() {
+                      detail.status = selectedStatus;
+                      detail.checkIn = _parseTimeOfDay(checkInController.text);
+                      detail.checkOut = _parseTimeOfDay(
+                        checkOutController.text,
+                      );
+                      detail.lemburHours = _safeParseInt(
+                        lemburController.text,
+                        detail.lemburHours,
+                      ).clamp(0, 24);
+                      detail.note = noteController.text.trim();
+                      detail.isManuallyEdited = true;
+
+                      if (selectedStatus == _DailyAttendanceStatus.hadir) {
+                        detail.checkIn ??= const TimeOfDay(hour: 8, minute: 0);
+                        detail.checkOut ??= const TimeOfDay(
+                          hour: 17,
+                          minute: 0,
+                        );
+                        detail.checkInPhotoPath ??= 'assets/icons/app_icon.jpg';
+                        detail.checkOutPhotoPath ??=
+                            'assets/icons/app_icon.jpg';
+                      } else {
+                        detail.checkIn = null;
+                        detail.checkOut = null;
+                        detail.lemburHours = 0;
+                        detail.checkInPhotoPath = null;
+                        detail.checkOutPhotoPath = null;
+                      }
+
+                      _syncRecapTotalsFromDailyDetails(recap);
+                    });
+                    _addLog(
+                      'Edit detail rekap absensi',
+                      '${recap.employeeName} - ${DateFormat('dd/MM/yyyy').format(detail.date)}',
+                      module: 'Rekap Absensi',
+                      before: beforeSummary,
+                      after: _formatDailyDetail(detail),
+                      detail: 'Data diedit manual oleh admin',
+                    );
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1198,6 +1756,7 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
             ),
             FilledButton(
               onPressed: () {
+                final beforeSummary = _formatRecap(recap);
                 setState(() {
                   recap.totalHadir = _safeParseInt(
                     hadirController.text,
@@ -1235,6 +1794,10 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                 _addLog(
                   'Edit rekap absensi',
                   '${recap.employeeName} (${recap.month}/${recap.year})',
+                  module: 'Rekap Absensi',
+                  before: beforeSummary,
+                  after: _formatRecap(recap),
+                  detail: 'Edit ringkasan bulanan oleh admin',
                 );
                 Navigator.pop(dialogContext);
               },
@@ -1378,14 +1941,27 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
           onAdd: _showAddEmployeeDialog,
           onEdit: _showEditEmployeeDialog,
           onChangeRole: (employee, role) {
+            final beforeRole = _labelRole(employee.role);
             setState(() => employee.role = role);
-            _addLog('Ubah role', '${employee.fullName} -> ${_labelRole(role)}');
+            _addLog(
+              'Ubah role',
+              employee.fullName,
+              module: 'Manajemen Karyawan',
+              before: beforeRole,
+              after: _labelRole(role),
+              detail: 'Perubahan hak akses pengguna',
+            );
           },
           onToggleActive: (employee, value) {
+            final beforeStatus = employee.isActive ? 'Aktif' : 'Nonaktif';
             setState(() => employee.isActive = value);
             _addLog(
               value ? 'Aktifkan karyawan' : 'Nonaktifkan karyawan',
               employee.fullName,
+              module: 'Manajemen Karyawan',
+              before: beforeStatus,
+              after: value ? 'Aktif' : 'Nonaktif',
+              detail: 'Perubahan status akun pengguna',
             );
           },
           onResetPassword: (employee) {
@@ -1394,11 +1970,23 @@ class _AdminDashboardSectionState extends State<AdminDashboardSection> {
                 content: Text('Password ${employee.fullName} direset (mock).'),
               ),
             );
-            _addLog('Reset password', employee.fullName);
+            _addLog(
+              'Reset password',
+              employee.fullName,
+              module: 'Keamanan Akun',
+              detail: 'Admin mereset password akun karyawan',
+            );
           },
           onDelete: (employee) {
+            final beforeEmployee = _formatEmployee(employee);
             setState(() => _employees.remove(employee));
-            _addLog('Hapus data karyawan', employee.fullName);
+            _addLog(
+              'Hapus data karyawan',
+              employee.fullName,
+              module: 'Manajemen Karyawan',
+              before: beforeEmployee,
+              detail: 'Data karyawan dihapus dari daftar',
+            );
           },
         ),
         const SizedBox(height: 12),
@@ -1493,6 +2081,59 @@ class _RecapCard extends StatelessWidget {
     required this.remainingLeaveByEmployee,
     required this.emptyTextColor,
   });
+
+  String _statusLabel(_DailyAttendanceStatus status) {
+    switch (status) {
+      case _DailyAttendanceStatus.hadir:
+        return 'Hadir';
+      case _DailyAttendanceStatus.off:
+        return 'Off';
+      case _DailyAttendanceStatus.extraOff:
+        return 'Extra Off';
+      case _DailyAttendanceStatus.cuti:
+        return 'Cuti';
+      case _DailyAttendanceStatus.sakit:
+        return 'Sakit';
+      case _DailyAttendanceStatus.alfa:
+        return 'Alfa';
+      case _DailyAttendanceStatus.tidakHadir:
+        return 'Tidak Hadir';
+    }
+  }
+
+  String _timeLabel(TimeOfDay? value) {
+    if (value == null) return '-';
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  Widget _miniPhoto(String? path) {
+    Widget content;
+    if (path == null || path.trim().isEmpty) {
+      content = const Center(
+        child: Text('Tanpa foto', style: TextStyle(fontSize: 11)),
+      );
+    } else if (path.startsWith('assets/')) {
+      content = Image.asset(path, fit: BoxFit.cover);
+    } else if (File(path).existsSync()) {
+      content = Image.file(File(path), fit: BoxFit.cover);
+    } else {
+      content = const Center(
+        child: Text('Foto hilang', style: TextStyle(fontSize: 11)),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        height: 56,
+        width: 76,
+        color: const Color(0xFFECEFF5),
+        child: content,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1598,24 +2239,71 @@ class _RecapCard extends StatelessWidget {
             ...currentRecapData.map(
               (item) => Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(
-                    item.employeeName,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    'Hadir ${item.totalHadir} | Off ${item.totalOff} | Tidak Hadir ${item.totalTidakHadir} | Cuti ${item.totalCuti} | Extra Off ${item.totalExtraOff} | Sakit ${item.totalSakit} | Alfa ${item.totalAlfa} | Lembur ${item.totalLembur} jam | Sisa Cuti ${remainingLeaveByEmployee[item.employeeName] ?? annualLeaveQuota}/$annualLeaveQuota',
-                  ),
-                  trailing: Wrap(
-                    spacing: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextButton(
-                        onPressed: () => onShowDetail(item),
-                        child: const Text('Detail'),
+                      Text(
+                        item.employeeName,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      TextButton(
-                        onPressed: () => onEditRecap(item),
-                        child: const Text('Edit'),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Hadir ${item.totalHadir} | Off ${item.totalOff} | Tidak Hadir ${item.totalTidakHadir} | Cuti ${item.totalCuti} | Extra Off ${item.totalExtraOff} | Sakit ${item.totalSakit} | Alfa ${item.totalAlfa} | Lembur ${item.totalLembur} jam',
+                      ),
+                      Text(
+                        'Sisa Cuti ${remainingLeaveByEmployee[item.employeeName] ?? annualLeaveQuota}/$annualLeaveQuota | Detail harian ${item.dailyDetails.length} hari',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (item.dailyDetails.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Builder(
+                          builder: (_) {
+                            final latest = item.dailyDetails
+                              ..sort((a, b) => b.date.compareTo(a.date));
+                            final day = latest.first;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Absensi terbaru: ${DateFormat('dd MMM yyyy', 'id_ID').format(day.date)} | ${_statusLabel(day.status)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  'Jam masuk ${_timeLabel(day.checkIn)} | Jam pulang ${_timeLabel(day.checkOut)}',
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    _miniPhoto(day.checkInPhotoPath),
+                                    const SizedBox(width: 8),
+                                    _miniPhoto(day.checkOutPhotoPath),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => onShowDetail(item),
+                            icon: const Icon(Icons.visibility_rounded),
+                            label: const Text('Detail Lengkap'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () => onEditRecap(item),
+                            icon: const Icon(Icons.edit_rounded),
+                            label: const Text('Edit Rekap'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -2030,7 +2718,7 @@ class _EmployeeManagementCard extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  'NIK: ${employee.nik}',
+                                  'kode karyawan: ${employee.nik}',
                                   style: const TextStyle(fontSize: 12),
                                 ),
                                 Text(
@@ -2136,6 +2824,7 @@ class _LogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       elevation: 1.2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -2158,10 +2847,61 @@ class _LogCard extends StatelessWidget {
               ...logs
                   .take(20)
                   .map(
-                    (log) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        '${DateFormat('dd/MM/yyyy HH:mm').format(log.time)} - ${log.actor} ${log.action} (${log.target})',
+                    (log) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      color: const Color(0xFFF8FAFF),
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DateFormat(
+                                'dd/MM/yyyy HH:mm:ss',
+                              ).format(log.time),
+                              style: TextStyle(
+                                color: cs.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${log.actor} | ${log.module}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              '${log.action} (${log.target})',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (log.detail != null &&
+                                log.detail!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text('Detail: ${log.detail!}'),
+                            ],
+                            if (log.before != null &&
+                                log.before!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Before: ${log.before!}',
+                                style: TextStyle(color: cs.onSurfaceVariant),
+                              ),
+                            ],
+                            if (log.after != null &&
+                                log.after!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'After: ${log.after!}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
